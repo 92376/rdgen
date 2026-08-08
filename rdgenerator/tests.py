@@ -36,6 +36,26 @@ class GenerateApiTests(TestCase):
 
         self.assertEqual(response.status_code, 403)
 
+    @override_settings(
+        CSRF_TRUSTED_ORIGINS=["https://rdgen.youyoulai.xyz"],
+        SECURE_PROXY_SSL_HEADER=("HTTP_X_FORWARDED_PROTO", "https"),
+    )
+    def test_web_form_accepts_csrf_behind_https_proxy(self):
+        csrf_client = Client(enforce_csrf_checks=True)
+        csrf_client.get("/generator", HTTP_HOST="rdgen.youyoulai.xyz")
+        token = csrf_client.cookies["csrftoken"].value
+
+        response = csrf_client.post(
+            "/generator",
+            data={"csrfmiddlewaretoken": token},
+            HTTP_HOST="rdgen.youyoulai.xyz",
+            HTTP_ORIGIN="https://rdgen.youyoulai.xyz",
+            HTTP_REFERER="https://rdgen.youyoulai.xyz/generator",
+            HTTP_X_FORWARDED_PROTO="https",
+        )
+
+        self.assertEqual(response.status_code, 200)
+
     @override_settings(GENURL="https://build.example.com")
     @patch("rdgenerator.api_views.generate_custom_client")
     def test_json_api_accepts_web_build_parameters(self, generate):

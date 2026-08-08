@@ -11,6 +11,7 @@ services:
       ZIP_PASSWORD: ""
       GHBRANCH: "master"
       PROTOCOL: "https"
+      CSRF_TRUSTED_ORIGINS: "https://rdgen.youyoulai.xyz"
       REPONAME: "rdgen"
       RUSTDESK_REPOSITORY: "92376/rustdesk-diy"
       RUSTDESK_REF: "diy"
