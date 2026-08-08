@@ -375,12 +375,41 @@ jobs:
           sed -i -e 's|https://rustdesk.com/download|${{ env.downloadLink }}|' ./src/ui/index.tis
 
       - name: allow custom.txt
-        continue-on-error: true
         shell: bash
         run: |
           sed -i -e '/const KEY:/,/};/d' ./src/common.rs
           sed -i -e '/let Ok(data) = sign::verify(&data, &pk)/,/};/d' ./src/common.rs
           # sed -i '/intl:/a \ \ archive: ^3.6.1' ./flutter/pubspec.yaml
+
+      - name: Embed custom client config in Android entry points
+        shell: bash
+        env:
+          CUSTOM_CLIENT_CONFIG: ${{ env.custom }}
+        run: |
+          python3 - <<'PY'
+          import os
+          from pathlib import Path
+
+          custom = os.environ["CUSTOM_CLIENT_CONFIG"]
+          if not custom or any(ch not in "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/=" for ch in custom):
+              raise SystemExit("CUSTOM_CLIENT_CONFIG is empty or is not base64")
+
+          dart_path = Path("flutter/lib/models/native_model.dart")
+          dart = dart_path.read_text(encoding="utf-8")
+          dart_old = "customClientConfig: '',"
+          dart_new = f"customClientConfig: '{custom}',"
+          if dart.count(dart_old) != 1:
+              raise SystemExit(f"Expected one Android/Dart custom config placeholder, found {dart.count(dart_old)}")
+          dart_path.write_text(dart.replace(dart_old, dart_new), encoding="utf-8")
+
+          service_path = Path("flutter/android/app/src/main/kotlin/com/carriez/flutter_hbb/MainService.kt")
+          service = service_path.read_text(encoding="utf-8")
+          service_old = 'FFI.startServer(configPath, "")'
+          service_new = f'FFI.startServer(configPath, "{custom}")'
+          if service.count(service_old) != 1:
+              raise SystemExit(f"Expected one Android service custom config placeholder, found {service.count(service_old)}")
+          service_path.write_text(service.replace(service_old, service_new), encoding="utf-8")
+          PY
 
       - name: Remove scam alert on Android
         shell: bash
@@ -497,8 +526,6 @@ jobs:
             mkdir -p ./flutter/android/app/src/main/jniLibs/arm64-v8a
             cp ${ANDROID_NDK_HOME}/toolchains/llvm/prebuilt/linux-x86_64/sysroot/usr/lib/aarch64-linux-android/libc++_shared.so ./flutter/android/app/src/main/jniLibs/arm64-v8a/
             cp ./target/${{ matrix.job.target }}/release/liblibrustdesk.so ./flutter/android/app/src/main/jniLibs/arm64-v8a/librustdesk.so
-            echo -n "${{ env.custom }}" | cat > ./flutter/assets/custom_.txt
-            #sed -i '/^    - assets\//a\    - assets/custom_.txt' ./flutter/pubspec.yaml
             # build flutter
             pushd flutter
             flutter build apk "--${{ matrix.job.reltype }}" --target-platform android-arm64 --split-per-abi
@@ -508,8 +535,6 @@ jobs:
               mkdir -p ./flutter/android/app/src/main/jniLibs/armeabi-v7a
               cp ${ANDROID_NDK_HOME}/toolchains/llvm/prebuilt/linux-x86_64/sysroot/usr/lib/arm-linux-androideabi/libc++_shared.so ./flutter/android/app/src/main/jniLibs/armeabi-v7a/
               cp ./target/${{ matrix.job.target }}/release/liblibrustdesk.so ./flutter/android/app/src/main/jniLibs/armeabi-v7a/librustdesk.so
-              echo -n "${{ env.custom }}" | cat > ./flutter/assets/custom_.txt
-              #sed -i '/^    - assets\//a\    - assets/custom_.txt' ./flutter/pubspec.yaml
               # build flutter
               pushd flutter
               flutter build apk "--${{ matrix.job.reltype }}" --target-platform android-arm --split-per-abi
@@ -519,8 +544,6 @@ jobs:
               mkdir -p ./flutter/android/app/src/main/jniLibs/x86_64
               cp ${ANDROID_NDK_HOME}/toolchains/llvm/prebuilt/linux-x86_64/sysroot/usr/lib/x86_64-linux-android/libc++_shared.so ./flutter/android/app/src/main/jniLibs/x86_64/
               cp ./target/${{ matrix.job.target }}/release/liblibrustdesk.so ./flutter/android/app/src/main/jniLibs/x86_64/librustdesk.so
-              echo -n "${{ env.custom }}" | cat > ./flutter/assets/custom_.txt
-              #sed -i '/^    - assets\//a\    - assets/custom_.txt' ./flutter/pubspec.yaml
               # build flutter
               pushd flutter
               flutter build apk "--${{ matrix.job.reltype }}" --target-platform android-x64 --split-per-abi
@@ -530,8 +553,6 @@ jobs:
               mkdir -p ./flutter/android/app/src/main/jniLibs/x86
               cp ${ANDROID_NDK_HOME}/toolchains/llvm/prebuilt/linux-x86_64/sysroot/usr/lib/i686-linux-android/libc++_shared.so ./flutter/android/app/src/main/jniLibs/x86/
               cp ./target/${{ matrix.job.target }}/release/liblibrustdesk.so ./flutter/android/app/src/main/jniLibs/x86/librustdesk.so
-              echo -n "${{ env.custom }}" | cat > ./flutter/assets/custom_.txt
-              #sed -i '/^    - assets\//a\    - assets/custom_.txt' ./flutter/pubspec.yaml
               # build flutter
               pushd flutter
               flutter build apk "--${{ matrix.job.reltype }}" --target-platform android-x86 --split-per-abi

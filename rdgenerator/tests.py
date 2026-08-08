@@ -200,6 +200,7 @@ class WorkflowDispatchTests(TestCase):
                         "version": "1.4.9",
                         "sourceRepository": DIY_REPOSITORY,
                         "denyLan": True,
+                        "enableDirectIP": True,
                     },
                     "https://build.example.com",
                 )
@@ -219,4 +220,7 @@ class WorkflowDispatchTests(TestCase):
         self.assertNotIn("enable-lan-discovery", custom_config)
         self.assertEqual(
             custom_config["default-settings"]["enable-lan-discovery"], "N"
+        )
+        self.assertEqual(
+            custom_config["default-settings"]["direct-server"], "Y"
         )
