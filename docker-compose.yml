@@ -1,7 +1,7 @@
 services:
   rdgen:
     build: .
-    image: rdgen-diy:local
+    image: 92376/rdgen:latest
     restart: unless-stopped
     environment:
       SECRET_KEY: "django-insecure-!(t-!f#6g#sr%yfded9(xha)g+=!6craeez^cp+*&bz_7vdk61"
@@ -13,7 +13,7 @@ services:
       PROTOCOL: "https"
       REPONAME: "rdgen"
       RUSTDESK_REPOSITORY: "92376/rustdesk-diy"
-      RUSTDESK_REF: "1.4.9"
+      RUSTDESK_REF: "diy"
       SH_SECRET: ""
     ports:
       - "8000:8000"
