@@ -1,7 +1,7 @@
 services:
   rdgen:
     build: .
-    image: 92376/rdgen:latest
+    image: qq5j/rdgen:latest
     restart: unless-stopped
     environment:
       SECRET_KEY: "django-insecure-!(t-!f#6g#sr%yfded9(xha)g+=!6craeez^cp+*&bz_7vdk61"
