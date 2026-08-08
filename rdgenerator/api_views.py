@@ -2,6 +2,7 @@ import json
 from django.http import JsonResponse
 from django.views.decorators.csrf import csrf_exempt
 from .views import generate_custom_client, _get_run_status, _public_base_url
+from .forms import CUSTOM_REPOSITORY, REPOSITORY_PATTERN, SOURCE_REPOSITORY_CHOICES
 
 
 # Field validation constraints (mirrored from GenerateForm)
@@ -15,6 +16,7 @@ THEME_DORO_CHOICES = ['default', 'override']
 PASS_APPROVE_MODE_CHOICES = ['password', 'click', 'password-click']
 PERMISSIONS_DORO_CHOICES = ['default', 'override']
 PERMISSIONS_TYPE_CHOICES = ['custom', 'full', 'view']
+SOURCE_REPOSITORIES = [choice[0] for choice in SOURCE_REPOSITORY_CHOICES]
 
 # Boolean fields
 BOOL_FIELDS = [
@@ -31,6 +33,7 @@ OPTIONAL_STR_FIELDS = [
     'appname', 'compname', 'androidappid', 'permanentPassword',
     'defaultManual', 'overrideManual',
     'iconbase64', 'logobase64', 'privacybase64',
+    'customSourceRepository',
 ]
 
 
@@ -56,6 +59,7 @@ def validate_generate_params(data):
     choice_validations = {
         'platform': (PLATFORM_CHOICES, 'windows'),
         'version': (VERSION_CHOICES, '1.4.9'),
+        'sourceRepository': (SOURCE_REPOSITORIES, '92376/rustdesk-diy'),
         'direction': (DIRECTION_CHOICES, 'both'),
         'installation': (INSTALLATION_CHOICES, 'installationY'),
         'settings': (SETTINGS_CHOICES, 'settingsY'),
@@ -83,6 +87,13 @@ def validate_generate_params(data):
     # Optional string fields
     for field in OPTIONAL_STR_FIELDS:
         cleaned[field] = data.get(field, '')
+
+    if cleaned.get('sourceRepository') == CUSTOM_REPOSITORY:
+        custom_repository = cleaned.get('customSourceRepository', '').strip()
+        if not custom_repository:
+            errors['customSourceRepository'] = 'This field is required for a custom repository.'
+        elif not REPOSITORY_PATTERN.fullmatch(custom_repository):
+            errors['customSourceRepository'] = 'Use the owner/repository format.'
 
     # File fields are not used in API mode (base64 fields are used instead)
     cleaned['iconfile'] = None

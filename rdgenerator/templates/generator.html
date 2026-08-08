@@ -272,6 +272,16 @@
                     <span class="help-text">{{ form.version.help_text }}</span>
                 {% endif %}
                 <div class="help-text">{{ form.version.help_text }}</div>
+                <label for="{{ form.sourceRepository.id_for_label }}">RustDesk Source Repository:</label>
+                {{ form.sourceRepository }}
+                <div id="custom-source-repository" style="display:none;">
+                    <label for="{{ form.customSourceRepository.id_for_label }}">Custom Repository (owner/repository):</label>
+                    {{ form.customSourceRepository }}
+                    {% if form.customSourceRepository.errors %}
+                        <span class="error">{{ form.customSourceRepository.errors|join:", " }}</span>
+                    {% endif %}
+                </div>
+                <div class="help-text">For non-official repositories, the selected version must exist as a branch. Otherwise the build falls back to rustdesk/rustdesk.</div>
                 <label for="{{ form.delayFix.id_for_label }}">{{ form.delayFix }} Fix connection delay when using third-party API</label>
             </div>
         </div>
@@ -407,6 +417,19 @@
         </div>
     </form>
     <script>
+        const sourceRepositorySelect = document.getElementById("{{ form.sourceRepository.id_for_label }}");
+        const customSourceRepository = document.getElementById("custom-source-repository");
+        const customSourceRepositoryInput = document.getElementById("{{ form.customSourceRepository.id_for_label }}");
+
+        function toggleCustomSourceRepository() {
+            const isCustom = sourceRepositorySelect.value === 'custom';
+            customSourceRepository.style.display = isCustom ? 'block' : 'none';
+            customSourceRepositoryInput.required = isCustom;
+        }
+
+        sourceRepositorySelect.addEventListener('change', toggleCustomSourceRepository);
+        toggleCustomSourceRepository();
+
         document.querySelectorAll('.platform-icon').forEach(icon => {
             icon.addEventListener('click', function() {
                 document.querySelectorAll('.platform-icon').forEach(i => i.classList.remove('active'));
@@ -680,6 +703,7 @@
                                     });
                                 }
                             }
+                            toggleCustomSourceRepository();
                         } catch (error) {
                             alert("Error loading data. Invalid JSON file.");
                         }

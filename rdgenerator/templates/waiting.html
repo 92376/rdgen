@@ -164,6 +164,12 @@
         </div>
         <p class="status-text">This can take 30-45 minutes. You can leave this page open or come back later.</p>
         <p class="status-text">Status: <span id="statusText">{{status}}</span></p>
+        {% if source_repository %}
+            <p class="status-text">Source: {{ source_repository }} @ {{ source_ref }}</p>
+        {% endif %}
+        {% if source_fallback %}
+            <p class="macos-note">The selected branch was not found in the non-official repository, so this build uses rustdesk/rustdesk.</p>
+        {% endif %}
 
         <div class="log-container">
             <p style="margin: 0 0 8px 0; color: #888;">Technical View</p>

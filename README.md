@@ -28,19 +28,18 @@ Each workflow checks out the configured DIY RustDesk source before applying the
 selected branding and server parameters. The defaults are:
 
 - source repository: `92376/rustdesk-diy`
-- source ref: `diy` (currently based on official 1.4.9)
+- source ref: the version selected in the web form (for example `1.4.9`)
 
 Set these environment variables on the Python service when a different fork or
 branch should be built:
 
 ```text
 RUSTDESK_REPOSITORY=92376/rustdesk-diy
-RUSTDESK_REF=diy
 ```
 
-Keep custom changes on the long-lived `diy` branch and merge newer official
-RustDesk releases into it. This lets the generator follow upstream without
-changing every workflow. `RUSTDESK_REF` may still be left empty to use the
-RustDesk version selected in the web form. `GENURL` must be the externally
+The web form can select the official repository, the DIY repository, or a
+custom `owner/repository`. For a non-official repository, the selected version
+must exist as a branch. If it does not, the generator automatically falls back
+to the same version in `rustdesk/rustdesk`. `GENURL` must be the externally
 reachable hostname or URL of this service, because GitHub Actions downloads the
 encrypted build parameters from it.

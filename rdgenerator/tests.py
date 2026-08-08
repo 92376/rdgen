@@ -9,7 +9,9 @@ import pyzipper
 from django.test import Client, RequestFactory, TestCase, override_settings
 
 from rdgen.settings import _origin_from_url
-from .views import _public_base_url, generate_custom_client
+from .api_views import validate_generate_params
+from .forms import DIY_REPOSITORY, OFFICIAL_REPOSITORY, GenerateForm
+from .views import _public_base_url, _resolve_source, generate_custom_client
 
 
 class PublicBaseUrlTests(TestCase):
@@ -98,6 +100,72 @@ class GenerateApiTests(TestCase):
         self.assertEqual(params["serverIP"], "rd.example.com")
         self.assertEqual(public_url, "https://build.example.com")
 
+    def test_custom_repository_requires_owner_and_repository(self):
+        _, errors = validate_generate_params({
+            "exename": "support-client",
+            "sourceRepository": "custom",
+            "customSourceRepository": "invalid-repository",
+        })
+
+        self.assertIn("customSourceRepository", errors)
+
+    def test_web_form_accepts_custom_repository(self):
+        form = GenerateForm(data={
+            "exename": "support-client",
+            "platform": "windows",
+            "version": "1.4.9",
+            "sourceRepository": "custom",
+            "customSourceRepository": "example/rustdesk",
+            "direction": "both",
+            "installation": "installationY",
+            "settings": "settingsY",
+            "theme": "system",
+            "themeDorO": "default",
+            "passApproveMode": "password-click",
+            "permissionsDorO": "default",
+            "permissionsType": "custom",
+        })
+
+        self.assertTrue(form.is_valid(), form.errors)
+
+
+class SourceResolutionTests(TestCase):
+    @patch("rdgenerator.views._github_branch_exists", return_value=True)
+    def test_uses_selected_non_official_repository_when_branch_exists(self, branch_exists):
+        repository, ref, fallback = _resolve_source({
+            "version": "1.4.9",
+            "sourceRepository": DIY_REPOSITORY,
+        })
+
+        self.assertEqual(repository, DIY_REPOSITORY)
+        self.assertEqual(ref, "1.4.9")
+        self.assertFalse(fallback)
+        branch_exists.assert_called_once_with(DIY_REPOSITORY, "1.4.9")
+
+    @patch("rdgenerator.views._github_branch_exists", return_value=False)
+    def test_falls_back_to_official_when_branch_is_missing(self, branch_exists):
+        repository, ref, fallback = _resolve_source({
+            "version": "1.4.8",
+            "sourceRepository": "example/rustdesk",
+        })
+
+        self.assertEqual(repository, OFFICIAL_REPOSITORY)
+        self.assertEqual(ref, "1.4.8")
+        self.assertTrue(fallback)
+        branch_exists.assert_called_once_with("example/rustdesk", "1.4.8")
+
+    @patch("rdgenerator.views._github_branch_exists")
+    def test_official_repository_does_not_require_branch_lookup(self, branch_exists):
+        repository, ref, fallback = _resolve_source({
+            "version": "1.4.7",
+            "sourceRepository": OFFICIAL_REPOSITORY,
+        })
+
+        self.assertEqual(repository, OFFICIAL_REPOSITORY)
+        self.assertEqual(ref, "1.4.7")
+        self.assertFalse(fallback)
+        branch_exists.assert_not_called()
+
 
 class WorkflowDispatchTests(TestCase):
     @override_settings(
@@ -108,10 +176,10 @@ class WorkflowDispatchTests(TestCase):
         ZIP_PASSWORD="test-password",
         GENURL="https://build.example.com",
         RUSTDESK_REPOSITORY="92376/rustdesk-diy",
-        RUSTDESK_REF="1.4.9",
     )
+    @patch("rdgenerator.views._github_branch_exists", return_value=True)
     @patch("rdgenerator.views.requests.post")
-    def test_dispatches_diy_repository_and_ref(self, post):
+    def test_dispatches_diy_repository_and_ref(self, post, branch_exists):
         post.return_value = Mock(
             status_code=200,
             json=Mock(return_value={
@@ -130,6 +198,7 @@ class WorkflowDispatchTests(TestCase):
                         "exename": "support-client",
                         "platform": "windows",
                         "version": "1.4.9",
+                        "sourceRepository": DIY_REPOSITORY,
                         "denyLan": True,
                     },
                     "https://build.example.com",

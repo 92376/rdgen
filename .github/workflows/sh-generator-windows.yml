@@ -16,7 +16,7 @@ on:
       source_ref:
         description: 'branch, tag, or commit to build from the DIY source repository'
         required: true
-        default: 'diy'
+        default: '1.4.9'
         type: string
       zip_url:
         description: 'url to zip of json'

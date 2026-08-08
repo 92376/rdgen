@@ -1,11 +1,32 @@
 from django import forms
 from PIL import Image
+import re
+
+
+OFFICIAL_REPOSITORY = 'rustdesk/rustdesk'
+DIY_REPOSITORY = '92376/rustdesk-diy'
+CUSTOM_REPOSITORY = 'custom'
+SOURCE_REPOSITORY_CHOICES = [
+    (DIY_REPOSITORY, '92376/rustdesk-diy (DIY)'),
+    (OFFICIAL_REPOSITORY, 'rustdesk/rustdesk (Official)'),
+    (CUSTOM_REPOSITORY, 'Custom repository'),
+]
+REPOSITORY_PATTERN = re.compile(r'^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$')
 
 class GenerateForm(forms.Form):
     sh_secret_field = forms.CharField(required=False)
     #Platform
     platform = forms.ChoiceField(choices=[('windows','Windows 64Bit'),('windows-x86','Windows 32Bit'),('linux','Linux'),('android','Android'),('macos','macOS')], initial='windows')
     version = forms.ChoiceField(choices=[('master','nightly'),('1.4.9','1.4.9'),('1.4.8','1.4.8'),('1.4.7','1.4.7'),('1.4.6','1.4.6'),('1.4.5','1.4.5'),('1.4.4','1.4.4'),('1.4.3','1.4.3'),('1.4.2','1.4.2'),('1.4.1','1.4.1'),('1.4.0','1.4.0')], initial='1.4.9')
+    sourceRepository = forms.ChoiceField(
+        label="RustDesk Source Repository",
+        choices=SOURCE_REPOSITORY_CHOICES,
+        initial=DIY_REPOSITORY,
+    )
+    customSourceRepository = forms.CharField(
+        label="Custom Repository (owner/repository)",
+        required=False,
+    )
     help_text="'master' is the development version (nightly build) with the latest features but may be less stable"
     delayFix = forms.BooleanField(initial=True, required=False)
 
@@ -109,3 +130,13 @@ class GenerateForm(forms.Form):
                 raise forms.ValidationError("Invalid icon file.")
             except Exception as e: # Catch any other image processing errors
                 raise forms.ValidationError(f"Error processing icon: {e}")
+
+    def clean(self):
+        cleaned_data = super().clean()
+        if cleaned_data.get('sourceRepository') == CUSTOM_REPOSITORY:
+            custom_repository = cleaned_data.get('customSourceRepository', '').strip()
+            if not custom_repository:
+                self.add_error('customSourceRepository', 'Enter a repository as owner/repository.')
+            elif not REPOSITORY_PATTERN.fullmatch(custom_repository):
+                self.add_error('customSourceRepository', 'Use the owner/repository format.')
+        return cleaned_data

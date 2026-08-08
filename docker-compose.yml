@@ -13,7 +13,6 @@ services:
       PROTOCOL: "https"
       REPONAME: "rdgen"
       RUSTDESK_REPOSITORY: "92376/rustdesk-diy"
-      RUSTDESK_REF: "diy"
       SH_SECRET: ""
     ports:
       - "8000:8000"

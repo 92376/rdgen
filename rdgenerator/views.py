@@ -14,7 +14,12 @@ import pyzipper
 from django.conf import settings as _settings
 from django.db.models import Q
 from django.views.decorators.csrf import csrf_exempt
-from .forms import GenerateForm
+from .forms import (
+    CUSTOM_REPOSITORY,
+    OFFICIAL_REPOSITORY,
+    REPOSITORY_PATTERN,
+    GenerateForm,
+)
 from .models import GithubRun
 from PIL import Image
 from urllib.parse import quote
@@ -27,6 +32,40 @@ def _public_base_url(request):
             return configured_url
         return f"{_settings.PROTOCOL}://{configured_url}"
     return request.build_absolute_uri('/').rstrip('/')
+
+
+def _github_branch_exists(repository, branch):
+    headers = {
+        'Accept': 'application/vnd.github+json',
+        'X-GitHub-Api-Version': '2026-03-10',
+    }
+    if _settings.GHBEARER:
+        headers['Authorization'] = f'Bearer {_settings.GHBEARER}'
+    response = requests.get(
+        f'https://api.github.com/repos/{repository}/branches/{quote(branch, safe="")}',
+        headers=headers,
+        timeout=10,
+    )
+    if response.status_code == 200:
+        return True
+    if response.status_code == 404:
+        return False
+    response.raise_for_status()
+
+
+def _resolve_source(params):
+    version = params.get('version', '1.4.9')
+    repository = params.get('sourceRepository') or _settings.RUSTDESK_REPOSITORY
+    if repository == CUSTOM_REPOSITORY:
+        repository = params.get('customSourceRepository', '').strip()
+    if not REPOSITORY_PATTERN.fullmatch(repository):
+        raise ValueError('Invalid source repository; use owner/repository.')
+
+    fallback = False
+    if repository != OFFICIAL_REPOSITORY and not _github_branch_exists(repository, version):
+        repository = OFFICIAL_REPOSITORY
+        fallback = True
+    return repository, version, fallback
 
 
 def generate_custom_client(params, full_url):
@@ -45,6 +84,16 @@ def generate_custom_client(params, full_url):
     selfhosted = (_settings.SH_SECRET == user_secret)
     platform = params.get('platform', 'windows')
     version = params.get('version', '1.4.9')
+    try:
+        source_repository, source_ref, source_fallback = _resolve_source(params)
+    except ValueError as error:
+        return {"success": False, "error": str(error), "status_code": 400}
+    except requests.RequestException as error:
+        return {
+            "success": False,
+            "error": f"Unable to verify source repository branch: {error}",
+            "status_code": 502,
+        }
     delayFix = params.get('delayFix', True)
     xOffline = params.get('xOffline', False)
     hidecm = params.get('hidecm', False)
@@ -300,8 +349,8 @@ def generate_custom_client(params, full_url):
         "ref":_settings.GHBRANCH,
         "inputs":{
             "version":version,
-            "source_repository": _settings.RUSTDESK_REPOSITORY,
-            "source_ref": _settings.RUSTDESK_REF or version,
+            "source_repository": source_repository,
+            "source_ref": source_ref,
             "zip_url":zip_url
         },
         "return_run_details": True
@@ -330,7 +379,10 @@ def generate_custom_client(params, full_url):
                 "uuid": myuuid,
                 "filename": filename,
                 "platform": platform,
-                "log_url": github_data.get('html_url')
+                "log_url": github_data.get('html_url'),
+                "source_repository": source_repository,
+                "source_ref": source_ref,
+                "source_fallback": source_fallback,
             }
         else:
             return {
@@ -403,7 +455,10 @@ def generator_view(request):
                     'uuid': result['uuid'],
                     'status': "Starting generator...please wait",
                     'platform': result['platform'],
-                    'log_url': result['log_url']
+                    'log_url': result['log_url'],
+                    'source_repository': result['source_repository'],
+                    'source_ref': result['source_ref'],
+                    'source_fallback': result['source_fallback'],
                 })
             else:
                 return JsonResponse({"error": result['error']}, status=result.get('status_code', 500))
@@ -535,13 +590,17 @@ def resize_and_encode_icon(imagefile):
 def startgh(request):
     #print(request)
     data_ = json.loads(request.body)
+    try:
+        source_repository, source_ref, _ = _resolve_source(data_)
+    except (ValueError, requests.RequestException) as error:
+        return JsonResponse({"error": str(error)}, status=400)
     ####from here run the github action, we need user, repo, access token.
     url = 'https://api.github.com/repos/'+_settings.GHUSER+'/'+_settings.REPONAME+'/actions/workflows/generator-'+data_.get('platform')+'.yml/dispatches'  
     data = {
         "ref": _settings.GHBRANCH,
         "inputs":{
-            "source_repository": _settings.RUSTDESK_REPOSITORY,
-            "source_ref": _settings.RUSTDESK_REF or data_.get('version', '1.4.9'),
+            "source_repository": source_repository,
+            "source_ref": source_ref,
             "server":data_.get('server'),
             "key":data_.get('key'),
             "apiServer":data_.get('apiServer'),
