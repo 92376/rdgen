@@ -168,9 +168,6 @@ def generate_custom_client(params, full_url):
                 decodedCustom['override-settings']['allow-darktheme'] = 'Y' if theme == "dark" else 'N'
             else:
                 decodedCustom['override-settings']['theme'] = theme
-    decodedCustom['enable-lan-discovery'] = 'N' if denyLan else 'Y'
-    #decodedCustom['direct-server'] = 'Y' if enableDirectIP else 'N'
-    decodedCustom['allow-auto-disconnect'] = 'Y' if autoClose else 'N'
     if permissionsDorO == "default":
         decodedCustom['default-settings']['access-mode'] = permissionsType
         decodedCustom['default-settings']['enable-keyboard'] = 'Y' if enableKeyboard else 'N'
@@ -182,7 +179,9 @@ def generate_custom_client(params, full_url):
         decodedCustom['default-settings']['enable-record-session'] = 'Y' if enableRecording else 'N'
         decodedCustom['default-settings']['enable-block-input'] = 'Y' if enableBlockingInput else 'N'
         decodedCustom['default-settings']['allow-remote-config-modification'] = 'Y' if enableRemoteModi else 'N'
+        decodedCustom['default-settings']['enable-lan-discovery'] = 'N' if denyLan else 'Y'
         decodedCustom['default-settings']['direct-server'] = 'Y' if enableDirectIP else 'N'
+        decodedCustom['default-settings']['allow-auto-disconnect'] = 'Y' if autoClose else 'N'
         decodedCustom['default-settings']['verification-method'] = 'use-permanent-password' if hidecm else 'use-both-passwords'
         decodedCustom['default-settings']['approve-mode'] = passApproveMode
         decodedCustom['default-settings']['allow-hide-cm'] = 'Y' if hidecm else 'N'
@@ -201,7 +200,9 @@ def generate_custom_client(params, full_url):
         decodedCustom['override-settings']['enable-record-session'] = 'Y' if enableRecording else 'N'
         decodedCustom['override-settings']['enable-block-input'] = 'Y' if enableBlockingInput else 'N'
         decodedCustom['override-settings']['allow-remote-config-modification'] = 'Y' if enableRemoteModi else 'N'
+        decodedCustom['override-settings']['enable-lan-discovery'] = 'N' if denyLan else 'Y'
         decodedCustom['override-settings']['direct-server'] = 'Y' if enableDirectIP else 'N'
+        decodedCustom['override-settings']['allow-auto-disconnect'] = 'Y' if autoClose else 'N'
         decodedCustom['override-settings']['verification-method'] = 'use-permanent-password' if hidecm else 'use-both-passwords'
         decodedCustom['override-settings']['approve-mode'] = passApproveMode
         decodedCustom['override-settings']['allow-hide-cm'] = 'Y' if hidecm else 'N'

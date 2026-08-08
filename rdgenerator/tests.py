@@ -1,8 +1,11 @@
+import base64
 import json
 import os
 import tempfile
+from pathlib import Path
 from unittest.mock import Mock, patch
 
+import pyzipper
 from django.test import Client, RequestFactory, TestCase, override_settings
 
 from .views import _public_base_url, generate_custom_client
@@ -86,6 +89,7 @@ class WorkflowDispatchTests(TestCase):
 
         previous_cwd = os.getcwd()
         with tempfile.TemporaryDirectory() as temp_dir:
+            temp_dir_path = Path(temp_dir)
             os.chdir(temp_dir)
             try:
                 result = generate_custom_client(
@@ -93,9 +97,15 @@ class WorkflowDispatchTests(TestCase):
                         "exename": "support-client",
                         "platform": "windows",
                         "version": "1.4.9",
+                        "denyLan": True,
                     },
                     "https://build.example.com",
                 )
+                zip_path = next((temp_dir_path / "temp_zips").glob("secrets_*.zip"))
+                with pyzipper.AESZipFile(zip_path) as archive:
+                    archive.setpassword(b"test-password")
+                    encrypted_inputs = json.loads(archive.read("secrets.json"))
+                custom_config = json.loads(base64.b64decode(encrypted_inputs["custom"]))
             finally:
                 os.chdir(previous_cwd)
 
@@ -104,3 +114,7 @@ class WorkflowDispatchTests(TestCase):
         self.assertEqual(request_data["inputs"]["source_repository"], "92376/rustdesk-diy")
         self.assertEqual(request_data["inputs"]["source_ref"], "1.4.9")
         self.assertEqual(post.call_args.kwargs["timeout"], 20)
+        self.assertNotIn("enable-lan-discovery", custom_config)
+        self.assertEqual(
+            custom_config["default-settings"]["enable-lan-discovery"], "N"
+        )
