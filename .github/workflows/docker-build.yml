@@ -44,3 +44,18 @@ jobs:
         with:
           push: true
           tags: ${{ vars.DOCKERHUB_USERNAME }}/${{ github.event.repository.name }}:${{ env.IMAGE_TAG }}
+
+      - name: Checkout repository for Docker Hub overview
+        if: github.ref == 'refs/heads/master'
+        uses: actions/checkout@v4
+
+      - name: Update Docker Hub overview
+        if: github.ref == 'refs/heads/master'
+        uses: peter-evans/dockerhub-description@v5
+        with:
+          username: ${{ vars.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+          repository: qq5j/rdgen
+          readme-filepath: ./README.md
+          short-description: RustDesk custom client generator
+          enable-url-completion: true
