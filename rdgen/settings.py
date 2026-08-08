@@ -11,6 +11,7 @@ https://docs.djangoproject.com/en/5.0/ref/settings/
 """
 import os
 from pathlib import Path
+from urllib.parse import urlsplit
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -43,11 +44,28 @@ DEBUG = DEBUG_ENV.lower() in ['true', '1', 't']
 ALLOWED_HOSTS = ['*']
 SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
 USE_X_FORWARDED_HOST = True
+
+
+def _origin_from_url(value):
+    value = value.strip().rstrip('/')
+    if not value:
+        return ''
+    if '://' not in value:
+        value = f'{PROTOCOL}://{value}'
+    parsed = urlsplit(value)
+    if not parsed.scheme or not parsed.netloc:
+        return ''
+    return f'{parsed.scheme}://{parsed.netloc}'
+
+
 CSRF_TRUSTED_ORIGINS = [
     origin.strip().rstrip('/')
     for origin in os.getenv('CSRF_TRUSTED_ORIGINS', '').split(',')
     if origin.strip()
 ]
+genurl_origin = _origin_from_url(GENURL)
+if genurl_origin and genurl_origin not in CSRF_TRUSTED_ORIGINS:
+    CSRF_TRUSTED_ORIGINS.append(genurl_origin)
 
 # Application definition
 

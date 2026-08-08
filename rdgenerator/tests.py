@@ -8,6 +8,7 @@ from unittest.mock import Mock, patch
 import pyzipper
 from django.test import Client, RequestFactory, TestCase, override_settings
 
+from rdgen.settings import _origin_from_url
 from .views import _public_base_url, generate_custom_client
 
 
@@ -26,6 +27,18 @@ class PublicBaseUrlTests(TestCase):
         request = self.factory.get("/", HTTP_HOST="internal:8000")
 
         self.assertEqual(_public_base_url(request), "http://build.example.com/base")
+
+    def test_csrf_origin_uses_protocol_for_hostname(self):
+        self.assertEqual(
+            _origin_from_url("rdgen.youyoulai.xyz"),
+            "https://rdgen.youyoulai.xyz",
+        )
+
+    def test_csrf_origin_preserves_url_scheme_and_port(self):
+        self.assertEqual(
+            _origin_from_url("http://build.example.com:8000/path/"),
+            "http://build.example.com:8000",
+        )
 
 
 class GenerateApiTests(TestCase):
