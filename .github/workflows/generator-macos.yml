@@ -8,6 +8,16 @@ on:
         required: true
         default: ''
         type: string
+      source_repository:
+        description: 'owner/repository containing the DIY RustDesk source'
+        required: true
+        default: '92376/rustdesk-diy'
+        type: string
+      source_ref:
+        description: 'branch, tag, or commit to build from the DIY source repository'
+        required: true
+        default: '1.4.9'
+        type: string
       zip_url:
         description: 'url to zip of json'
         required: true
@@ -49,6 +59,8 @@ jobs:
     uses: ./.github/workflows/bridge.yml
     with:
       version: ${{ inputs.version }}
+      source_repository: ${{ inputs.source_repository }}
+      source_ref: ${{ inputs.source_ref }}
 
   build-for-macos:
     name: ${{ matrix.job.target }}
@@ -106,20 +118,12 @@ jobs:
             core.exportVariable('ACTIONS_CACHE_URL', process.env.ACTIONS_CACHE_URL || '');
             core.exportVariable('ACTIONS_RUNTIME_TOKEN', process.env.ACTIONS_RUNTIME_TOKEN || '');
 
-      - name: Checkout source code
-        if: ${{ env.VERSION != 'master' }}
+      - name: Checkout DIY source code
         uses: actions/checkout@v4
         with:
-            repository: rustdesk/rustdesk
-            ref: refs/tags/${{ env.VERSION }}
-            submodules: recursive
-  
-      - name: Checkout source code
-        if: ${{ env.VERSION == 'master' }}
-        uses: actions/checkout@v4
-        with:
-            repository: rustdesk/rustdesk
-            submodules: recursive
+          repository: ${{ inputs.source_repository }}
+          ref: ${{ inputs.source_ref }}
+          submodules: recursive
 
       - name: Install imagemagick and potrace and nasm and and
         shell: bash

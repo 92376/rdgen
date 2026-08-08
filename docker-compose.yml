@@ -1,8 +1,7 @@
 services:
   rdgen:
-    # use bryangerlach/rdgen:latest for the latest build
-    #build: .
-    image: bryangerlach/rdgen:latest
+    build: .
+    image: rdgen-diy:local
     restart: unless-stopped
     environment:
       SECRET_KEY: "django-insecure-!(t-!f#6g#sr%yfded9(xha)g+=!6craeez^cp+*&bz_7vdk61"
@@ -13,6 +12,8 @@ services:
       GHBRANCH: "master"
       PROTOCOL: "https"
       REPONAME: "rdgen"
+      RUSTDESK_REPOSITORY: "92376/rustdesk-diy"
+      RUSTDESK_REF: "1.4.9"
       SH_SECRET: ""
     ports:
       - "8000:8000"

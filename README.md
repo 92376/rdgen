@@ -21,3 +21,23 @@ Save your configuration from the rdgen web interface, or generate your own, then
 - Avoid special characters or non-English characters in app name and file name
 - Build time is currently 30 - 45 minutes
 
+## DIY RustDesk 1.4.9 build source
+
+The web form and JSON API dispatch the platform workflow in this repository.
+Each workflow checks out the configured DIY RustDesk source before applying the
+selected branding and server parameters. The defaults are:
+
+- source repository: `92376/rustdesk-diy`
+- source ref: `1.4.9`
+
+Set these environment variables on the Python service when a different fork or
+branch should be built:
+
+```text
+RUSTDESK_REPOSITORY=92376/rustdesk-diy
+RUSTDESK_REF=1.4.9
+```
+
+`RUSTDESK_REF` may be left empty to use the RustDesk version selected in the web
+form. `GENURL` must be the externally reachable hostname or URL of this service,
+because GitHub Actions downloads the encrypted build parameters from it.

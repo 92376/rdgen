@@ -1,7 +1,7 @@
 import json
 from django.http import JsonResponse
-from django.conf import settings as _settings
-from .views import generate_custom_client, _get_run_status
+from django.views.decorators.csrf import csrf_exempt
+from .views import generate_custom_client, _get_run_status, _public_base_url
 
 
 # Field validation constraints (mirrored from GenerateForm)
@@ -92,6 +92,7 @@ def validate_generate_params(data):
     return cleaned, errors
 
 
+@csrf_exempt
 def api_generate(request):
     """
     POST /api/generate
@@ -118,7 +119,7 @@ def api_generate(request):
         }, status=400)
 
     # Build full_url the same way as generator_view
-    full_url = f"{_settings.PROTOCOL}://{request.get_host()}" if _settings.GENURL else f"{_settings.PROTOCOL}://{request.get_host()}"
+    full_url = _public_base_url(request)
 
     result = generate_custom_client(cleaned, full_url)
 

@@ -30,6 +30,8 @@
   * ZIP_PASSWORD="the same password that you entered as a github secret"
   * PROTOCOL="https" *optional - defaults to "https", change to "http" if you need to
   * REPONAME="rdgen" *optional - defaults to "rdgen", change this if you renamed the repo when you forked it
+  * RUSTDESK_REPOSITORY="92376/rustdesk-diy" *optional - DIY RustDesk source repository used by Actions
+  * RUSTDESK_REF="1.4.9" *optional - fixed branch, tag, or commit; leave empty to use the web form version
 5. Now just run ```docker compose up -d```
 
 
@@ -73,6 +75,8 @@
         * GHBEARER="your fine-grained access token"  
         * PROTOCOL="https" *optional - defaults to "https", change to "http" if you need to
         * REPONAME="rdgen" *optional - defaults to "rdgen", change this if you renamed the repo when you forked it
+        * RUSTDESK_REPOSITORY="92376/rustdesk-diy" *optional - DIY RustDesk source repository used by Actions
+        * RUSTDESK_REF="1.4.9" *optional - fixed branch, tag, or commit; leave empty to use the submitted version
     * github secrets (setup on your github account for your rdgen repo):  
         * GENURL="example.com:8000"  *this is the domain and port that you are
           running rdgen on, needs to be accessible on the internet, depending

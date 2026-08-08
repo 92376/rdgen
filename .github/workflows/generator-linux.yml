@@ -8,6 +8,16 @@ on:
         required: true
         default: ''
         type: string
+      source_repository:
+        description: 'owner/repository containing the DIY RustDesk source'
+        required: true
+        default: '92376/rustdesk-diy'
+        type: string
+      source_ref:
+        description: 'branch, tag, or commit to build from the DIY source repository'
+        required: true
+        default: '1.4.9'
+        type: string
       zip_url:
         description: 'url to zip of json'
         required: true
@@ -50,6 +60,8 @@ jobs:
     uses: ./.github/workflows/bridge.yml
     with:
       version: ${{ inputs.version }}
+      source_repository: ${{ inputs.source_repository }}
+      source_ref: ${{ inputs.source_ref }}
 
   build-rustdesk-linux:
     needs: [generate-bridge-linux, setup]
@@ -122,19 +134,11 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y imagemagick
 
-      - name: Checkout source code
-        if: ${{ env.VERSION != 'master' }}
+      - name: Checkout DIY source code
         uses: actions/checkout@v4
         with:
-          repository: rustdesk/rustdesk
-          ref: refs/tags/${{ env.VERSION }}
-          submodules: recursive
-
-      - name: Checkout source code
-        if: ${{ env.VERSION == 'master' }}
-        uses: actions/checkout@v4
-        with:
-          repository: rustdesk/rustdesk
+          repository: ${{ inputs.source_repository }}
+          ref: ${{ inputs.source_ref }}
           submodules: recursive
 
       - name: Set Swap Space
@@ -661,19 +665,11 @@ jobs:
         with:
           zip_password: ${{ secrets.ZIP_PASSWORD }}
 
-      - name: Checkout source code
-        if: ${{ env.VERSION != 'master' }}
+      - name: Checkout DIY source code
         uses: actions/checkout@v4
         with:
-          repository: rustdesk/rustdesk
-          ref: refs/tags/${{ env.VERSION }}
-          submodules: recursive
-
-      - name: Checkout source code
-        if: ${{ env.VERSION == 'master' }}
-        uses: actions/checkout@v4
-        with:
-          repository: rustdesk/rustdesk
+          repository: ${{ inputs.source_repository }}
+          ref: ${{ inputs.source_ref }}
           submodules: recursive
 
       - name: Download Binary
@@ -800,19 +796,11 @@ jobs:
         with:
           zip_password: ${{ secrets.ZIP_PASSWORD }}
 
-      - name: Checkout source code
-        if: ${{ env.VERSION != 'master' }}
+      - name: Checkout DIY source code
         uses: actions/checkout@v4
         with:
-          repository: rustdesk/rustdesk
-          ref: refs/tags/${{ env.VERSION }}
-          submodules: recursive
-
-      - name: Checkout source code
-        if: ${{ env.VERSION == 'master' }}
-        uses: actions/checkout@v4
-        with:
-          repository: rustdesk/rustdesk
+          repository: ${{ inputs.source_repository }}
+          ref: ${{ inputs.source_ref }}
           submodules: recursive
 
       - name: Download Binary

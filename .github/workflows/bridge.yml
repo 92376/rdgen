@@ -10,6 +10,14 @@ on:
         required: true
         default: '1.3.1'
         type: string
+      source_repository:
+        description: 'owner/repository containing the DIY RustDesk source'
+        required: true
+        type: string
+      source_ref:
+        description: 'branch, tag, or commit to build from the DIY source repository'
+        required: true
+        type: string
 
 env:
   CARGO_EXPAND_VERSION: "1.0.95"
@@ -30,19 +38,11 @@ jobs:
               extra-build-args: "",
             }
     steps:
-      - name: Checkout source code
-        if: ${{ inputs.version != 'master' }}
+      - name: Checkout DIY source code
         uses: actions/checkout@v4
         with:
-          repository: rustdesk/rustdesk
-          ref: refs/tags/${{ inputs.version }}
-          submodules: recursive
-        
-      - name: Checkout source code
-        if: ${{ inputs.version == 'master' }}
-        uses: actions/checkout@v4
-        with:
-          repository: rustdesk/rustdesk
+          repository: ${{ inputs.source_repository }}
+          ref: ${{ inputs.source_ref }}
           submodules: recursive
 
       - name: Install prerequisites

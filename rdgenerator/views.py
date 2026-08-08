@@ -13,10 +13,20 @@ import uuid
 import pyzipper
 from django.conf import settings as _settings
 from django.db.models import Q
+from django.views.decorators.csrf import csrf_exempt
 from .forms import GenerateForm
 from .models import GithubRun
 from PIL import Image
 from urllib.parse import quote
+
+
+def _public_base_url(request):
+    configured_url = _settings.GENURL.strip().rstrip('/')
+    if configured_url:
+        if configured_url.startswith(('http://', 'https://')):
+            return configured_url
+        return f"{_settings.PROTOCOL}://{configured_url}"
+    return request.build_absolute_uri('/').rstrip('/')
 
 
 def generate_custom_client(params, full_url):
@@ -135,13 +145,13 @@ def generate_custom_client(params, full_url):
 
     ###create the custom.txt json here and send in as inputs below
     decodedCustom = {}
-    if direction != "Both":
+    if direction != "both":
         decodedCustom['conn-type'] = direction
     if installation == "installationN":
         decodedCustom['disable-installation'] = 'Y'
     if settings == "settingsN":
         decodedCustom['disable-settings'] = 'Y'
-    if appname.upper != "rustdesk".upper and appname != "":
+    if appname.lower() != "rustdesk":
         decodedCustom['app-name'] = appname
     decodedCustom['override-settings'] = {}
     decodedCustom['default-settings'] = {}
@@ -265,7 +275,7 @@ def generate_custom_client(params, full_url):
     }
 
     temp_json_path = f"data_{uuid.uuid4()}.json"
-    zip_filename = f"secrets_{uuid.uuid4()}.zip"
+    zip_filename = f"secrets_{myuuid}.zip"
     zip_path = "temp_zips/%s" % (zip_filename)
     Path("temp_zips").mkdir(parents=True, exist_ok=True)
 
@@ -289,6 +299,8 @@ def generate_custom_client(params, full_url):
         "ref":_settings.GHBRANCH,
         "inputs":{
             "version":version,
+            "source_repository": _settings.RUSTDESK_REPOSITORY,
+            "source_ref": _settings.RUSTDESK_REF or version,
             "zip_url":zip_url
         },
         "return_run_details": True
@@ -304,7 +316,7 @@ def generate_custom_client(params, full_url):
         status="Starting generator...please wait"
     )
     try:
-        response = requests.post(url, json=data, headers=headers)
+        response = requests.post(url, json=data, headers=headers, timeout=20)
         if response.status_code == 204 or response.status_code == 200:
             github_data = response.json()
             print(github_data)
@@ -382,7 +394,7 @@ def generator_view(request):
         form = GenerateForm(request.POST, request.FILES)
         if form.is_valid():
             params = form.cleaned_data
-            full_url = f"{_settings.PROTOCOL}://{request.get_host()}" if _settings.GENURL else f"{_settings.PROTOCOL}://{request.get_host()}"
+            full_url = _public_base_url(request)
             result = generate_custom_client(params, full_url)
             if result['success']:
                 return render(request, 'waiting.html', {
@@ -470,6 +482,7 @@ def create_github_run(myuuid):
     )
     new_github_run.save()
 
+@csrf_exempt
 def update_github_run(request):
     data = json.loads(request.body)
     myuuid = data.get('uuid')
@@ -517,6 +530,7 @@ def resize_and_encode_icon(imagefile):
     return resized64
  
 #the following is used when accessed from an external source, like the rustdesk api server
+@csrf_exempt
 def startgh(request):
     #print(request)
     data_ = json.loads(request.body)
@@ -525,6 +539,8 @@ def startgh(request):
     data = {
         "ref": _settings.GHBRANCH,
         "inputs":{
+            "source_repository": _settings.RUSTDESK_REPOSITORY,
+            "source_ref": _settings.RUSTDESK_REF or data_.get('version', '1.4.9'),
             "server":data_.get('server'),
             "key":data_.get('key'),
             "apiServer":data_.get('apiServer'),
@@ -573,6 +589,7 @@ def save_png(file, uuid, domain, name):
     #return "%s/%s" % (domain, file_save_path)
     return domain, uuid, name
 
+@csrf_exempt
 def save_custom_client(request):
     file = request.FILES['file']
     myuuid = request.POST.get('uuid')
@@ -584,6 +601,7 @@ def save_custom_client(request):
 
     return HttpResponse("File saved successfully!")
 
+@csrf_exempt
 def cleanup_secrets(request):
     # Pass the UUID as a query param or in JSON body
     data = json.loads(request.body)

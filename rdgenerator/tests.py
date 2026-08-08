@@ -1,3 +1,106 @@
-from django.test import TestCase
+import json
+import os
+import tempfile
+from unittest.mock import Mock, patch
 
-# Create your tests here.
+from django.test import Client, RequestFactory, TestCase, override_settings
+
+from .views import _public_base_url, generate_custom_client
+
+
+class PublicBaseUrlTests(TestCase):
+    def setUp(self):
+        self.factory = RequestFactory()
+
+    @override_settings(GENURL="build.example.com/", PROTOCOL="https")
+    def test_uses_configured_external_url(self):
+        request = self.factory.get("/", HTTP_HOST="internal:8000")
+
+        self.assertEqual(_public_base_url(request), "https://build.example.com")
+
+    @override_settings(GENURL="http://build.example.com/base/", PROTOCOL="https")
+    def test_preserves_configured_scheme(self):
+        request = self.factory.get("/", HTTP_HOST="internal:8000")
+
+        self.assertEqual(_public_base_url(request), "http://build.example.com/base")
+
+
+class GenerateApiTests(TestCase):
+    def test_web_form_requires_csrf_token(self):
+        csrf_client = Client(enforce_csrf_checks=True)
+
+        response = csrf_client.post("/generator", data={"exename": "support-client"})
+
+        self.assertEqual(response.status_code, 403)
+
+    @override_settings(GENURL="https://build.example.com")
+    @patch("rdgenerator.api_views.generate_custom_client")
+    def test_json_api_accepts_web_build_parameters(self, generate):
+        generate.return_value = {
+            "success": True,
+            "uuid": "run-id",
+            "filename": "support-client",
+            "platform": "windows",
+            "log_url": "https://github.example/run",
+        }
+
+        response = self.client.post(
+            "/api/generate",
+            data=json.dumps({
+                "exename": "support-client",
+                "platform": "windows",
+                "version": "1.4.9",
+                "serverIP": "rd.example.com",
+                "delayFix": True,
+            }),
+            content_type="application/json",
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue(response.json()["success"])
+        params, public_url = generate.call_args.args
+        self.assertEqual(params["serverIP"], "rd.example.com")
+        self.assertEqual(public_url, "https://build.example.com")
+
+
+class WorkflowDispatchTests(TestCase):
+    @override_settings(
+        GHUSER="92376",
+        REPONAME="rdgen",
+        GHBRANCH="master",
+        GHBEARER="test-token",
+        ZIP_PASSWORD="test-password",
+        GENURL="https://build.example.com",
+        RUSTDESK_REPOSITORY="92376/rustdesk-diy",
+        RUSTDESK_REF="1.4.9",
+    )
+    @patch("rdgenerator.views.requests.post")
+    def test_dispatches_diy_repository_and_ref(self, post):
+        post.return_value = Mock(
+            status_code=200,
+            json=Mock(return_value={
+                "workflow_run_id": 123,
+                "html_url": "https://github.com/92376/rdgen/actions/runs/123",
+            }),
+        )
+
+        previous_cwd = os.getcwd()
+        with tempfile.TemporaryDirectory() as temp_dir:
+            os.chdir(temp_dir)
+            try:
+                result = generate_custom_client(
+                    {
+                        "exename": "support-client",
+                        "platform": "windows",
+                        "version": "1.4.9",
+                    },
+                    "https://build.example.com",
+                )
+            finally:
+                os.chdir(previous_cwd)
+
+        self.assertTrue(result["success"])
+        request_data = post.call_args.kwargs["json"]
+        self.assertEqual(request_data["inputs"]["source_repository"], "92376/rustdesk-diy")
+        self.assertEqual(request_data["inputs"]["source_ref"], "1.4.9")
+        self.assertEqual(post.call_args.kwargs["timeout"], 20)
