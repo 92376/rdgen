@@ -131,7 +131,7 @@ class GenerateApiTests(TestCase):
 
 
 class DownloadTests(TestCase):
-    def test_android_result_only_shows_aarch64_download(self):
+    def test_android_result_shows_all_built_architectures(self):
         html = render_to_string("generated.html", {
             "filename": "ny149",
             "uuid": "00000000-0000-0000-0000-000000000000",
@@ -139,8 +139,8 @@ class DownloadTests(TestCase):
         })
 
         self.assertIn("ny149-aarch64.apk", html)
-        self.assertNotIn("ny149-x86_64.apk", html)
-        self.assertNotIn("ny149-armv7.apk", html)
+        self.assertIn("ny149-x86_64.apk", html)
+        self.assertIn("ny149-armv7.apk", html)
 
     def test_missing_download_returns_404(self):
         response = self.client.get("/download", {

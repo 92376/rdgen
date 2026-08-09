@@ -78,22 +78,20 @@ jobs:
               reltype: release,
               suffix: "",
             }
-          # Temporarily build aarch64 only. Uncomment these entries when
-          # armv7 or x86_64 Android packages are needed again.
-          # - {
-          #     arch: armv7,
-          #     target: armv7-linux-androideabi,
-          #     os: ubuntu-24.04,
-          #     reltype: release,
-          #     suffix: "",
-          #   }
-          # - {
-          #     arch: x86_64,
-          #     target: x86_64-linux-android,
-          #     os: ubuntu-24.04,
-          #     reltype: release,
-          #     suffix: "",
-          #   }
+          - {
+              arch: armv7,
+              target: armv7-linux-androideabi,
+              os: ubuntu-24.04,
+              reltype: release,
+              suffix: "",
+            }
+          - {
+              arch: x86_64,
+              target: x86_64-linux-android,
+              os: ubuntu-24.04,
+              reltype: release,
+              suffix: "",
+            }
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v4
