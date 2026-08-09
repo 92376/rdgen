@@ -7,6 +7,7 @@ from unittest.mock import Mock, patch
 
 import pyzipper
 from django.test import Client, RequestFactory, TestCase, override_settings
+from django.template.loader import render_to_string
 
 from rdgen.settings import _origin_from_url
 from .api_views import validate_generate_params
@@ -127,6 +128,35 @@ class GenerateApiTests(TestCase):
         })
 
         self.assertTrue(form.is_valid(), form.errors)
+
+
+class DownloadTests(TestCase):
+    def test_android_result_only_shows_aarch64_download(self):
+        html = render_to_string("generated.html", {
+            "filename": "ny149",
+            "uuid": "00000000-0000-0000-0000-000000000000",
+            "platform": "android",
+        })
+
+        self.assertIn("ny149-aarch64.apk", html)
+        self.assertNotIn("ny149-x86_64.apk", html)
+        self.assertNotIn("ny149-armv7.apk", html)
+
+    def test_missing_download_returns_404(self):
+        response = self.client.get("/download", {
+            "filename": "missing-aarch64.apk",
+            "uuid": "00000000-0000-0000-0000-000000000000",
+        })
+
+        self.assertEqual(response.status_code, 404)
+
+    def test_download_rejects_path_traversal(self):
+        response = self.client.get("/download", {
+            "filename": "../secrets.json",
+            "uuid": "00000000-0000-0000-0000-000000000000",
+        })
+
+        self.assertEqual(response.status_code, 404)
 
 
 class SourceResolutionTests(TestCase):

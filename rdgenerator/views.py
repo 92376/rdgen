@@ -1,6 +1,7 @@
 import io
+import mimetypes
 from pathlib import Path
-from django.http import HttpResponse, JsonResponse, HttpResponseForbidden
+from django.http import FileResponse, Http404, HttpResponse, JsonResponse, HttpResponseForbidden
 from django.shortcuts import render, get_object_or_404
 from django.core.files.base import ContentFile
 import os
@@ -507,16 +508,27 @@ def check_for_file(request):
         })
 
 def download(request):
-    filename = request.GET['filename']
-    uuid = request.GET['uuid']
-    file_path = os.path.join('exe', uuid, filename)
-    with open(file_path, 'rb') as file:
-        content = file.read()
-    response = HttpResponse(content, headers={
-        'Content-Type': 'application/vnd.microsoft.portable-executable',
-        'Content-Disposition': f'attachment; filename="{filename}"'
-    })
-    return response
+    filename = request.GET.get('filename', '')
+    run_id = request.GET.get('uuid', '')
+    if not filename or Path(filename).name != filename:
+        raise Http404("File not found")
+    try:
+        uuid.UUID(run_id)
+    except (ValueError, AttributeError):
+        raise Http404("File not found")
+
+    base_dir = Path('exe').resolve()
+    file_path = (base_dir / run_id / filename).resolve()
+    if base_dir not in file_path.parents or not file_path.is_file():
+        raise Http404("File not found")
+
+    content_type = mimetypes.guess_type(filename)[0] or 'application/octet-stream'
+    return FileResponse(
+        file_path.open('rb'),
+        as_attachment=True,
+        filename=filename,
+        content_type=content_type,
+    )
 
 def get_png(request):
     filename = request.GET['filename']
