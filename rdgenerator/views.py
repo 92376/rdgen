@@ -359,11 +359,12 @@ def generate_custom_client(params, full_url):
             "version":version,
             "source_repository": source_repository,
             "source_ref": source_ref,
-            "android_arch": android_arch,
             "zip_url":zip_url
         },
         "return_run_details": True
-    } 
+    }
+    if platform == 'android':
+        data["inputs"]["android_arch"] = android_arch
     headers = {
         'Accept':  'application/vnd.github+json',
         'Content-Type': 'application/json',

@@ -263,6 +263,7 @@ class WorkflowDispatchTests(TestCase):
         request_data = post.call_args.kwargs["json"]
         self.assertEqual(request_data["inputs"]["source_repository"], "92376/rustdesk-diy")
         self.assertEqual(request_data["inputs"]["source_ref"], "1.4.9")
+        self.assertNotIn("android_arch", request_data["inputs"])
         self.assertEqual(post.call_args.kwargs["timeout"], 20)
         self.assertNotIn("enable-lan-discovery", custom_config)
         self.assertEqual(
