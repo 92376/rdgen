@@ -209,9 +209,9 @@ def generate_custom_client(params, full_url):
     decodedCustom['override-settings'] = {}
     decodedCustom['default-settings'] = {}
     if hide_android_connection_notification:
-        decodedCustom['hide-android-connection-notification'] = 'Y'
+        decodedCustom['default-settings']['hide-android-connection-notification'] = 'Y'
     if hide_android_connection_card:
-        decodedCustom['hide-android-connection-card'] = 'Y'
+        decodedCustom['default-settings']['hide-android-connection-card'] = 'Y'
     if permPass != "":
         decodedCustom['password'] = permPass
     if theme != "system":

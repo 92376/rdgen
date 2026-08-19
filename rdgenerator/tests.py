@@ -316,5 +316,11 @@ class WorkflowDispatchTests(TestCase):
         self.assertTrue(result["success"])
         request_data = post.call_args.kwargs["json"]
         self.assertEqual(request_data["inputs"]["android_arch"], "armv7")
-        self.assertEqual(custom_config["hide-android-connection-notification"], "Y")
-        self.assertEqual(custom_config["hide-android-connection-card"], "Y")
+        self.assertEqual(
+            custom_config["default-settings"]["hide-android-connection-notification"],
+            "Y",
+        )
+        self.assertEqual(
+            custom_config["default-settings"]["hide-android-connection-card"],
+            "Y",
+        )
