@@ -129,18 +129,35 @@ class GenerateApiTests(TestCase):
 
         self.assertTrue(form.is_valid(), form.errors)
 
+    def test_android_options_default_to_aarch64_and_visible_connection_ui(self):
+        form = GenerateForm()
+
+        self.assertEqual(form.fields["androidArch"].initial, "aarch64")
+        self.assertFalse(form.fields["hideAndroidConnectionNotification"].initial)
+        self.assertFalse(form.fields["hideAndroidConnectionCard"].initial)
+
+    def test_json_api_validates_android_architecture(self):
+        cleaned, errors = validate_generate_params({
+            "exename": "support-client",
+            "platform": "android",
+            "androidArch": "invalid",
+        })
+
+        self.assertIn("androidArch", errors)
+
 
 class DownloadTests(TestCase):
-    def test_android_result_shows_all_built_architectures(self):
+    def test_android_result_shows_selected_architecture(self):
         html = render_to_string("generated.html", {
             "filename": "ny149",
             "uuid": "00000000-0000-0000-0000-000000000000",
             "platform": "android",
+            "android_arch": "armv7",
         })
 
-        self.assertIn("ny149-aarch64.apk", html)
-        self.assertIn("ny149-x86_64.apk", html)
         self.assertIn("ny149-armv7.apk", html)
+        self.assertNotIn("ny149-aarch64.apk", html)
+        self.assertNotIn("ny149-x86_64.apk", html)
 
     def test_missing_download_returns_404(self):
         response = self.client.get("/download", {
@@ -254,3 +271,50 @@ class WorkflowDispatchTests(TestCase):
         self.assertEqual(
             custom_config["default-settings"]["direct-server"], "Y"
         )
+
+    @override_settings(
+        GHUSER="92376",
+        REPONAME="rdgen",
+        GHBRANCH="master",
+        GHBEARER="test-token",
+        ZIP_PASSWORD="test-password",
+        GENURL="https://build.example.com",
+        RUSTDESK_REPOSITORY="92376/rustdesk-diy",
+    )
+    @patch("rdgenerator.views._github_branch_exists", return_value=True)
+    @patch("rdgenerator.views.requests.post")
+    def test_dispatches_android_arch_and_hidden_connection_options(
+        self, post, branch_exists
+    ):
+        post.return_value = Mock(
+            status_code=200,
+            json=Mock(return_value={"workflow_run_id": 124, "html_url": None}),
+        )
+
+        previous_cwd = os.getcwd()
+        with tempfile.TemporaryDirectory() as temp_dir:
+            temp_dir_path = Path(temp_dir)
+            os.chdir(temp_dir)
+            try:
+                result = generate_custom_client({
+                    "exename": "android-client",
+                    "platform": "android",
+                    "version": "1.4.9",
+                    "sourceRepository": DIY_REPOSITORY,
+                    "androidArch": "armv7",
+                    "hideAndroidConnectionNotification": True,
+                    "hideAndroidConnectionCard": True,
+                }, "https://build.example.com")
+                zip_path = next((temp_dir_path / "temp_zips").glob("secrets_*.zip"))
+                with pyzipper.AESZipFile(zip_path) as archive:
+                    archive.setpassword(b"test-password")
+                    encrypted_inputs = json.loads(archive.read("secrets.json"))
+                custom_config = json.loads(base64.b64decode(encrypted_inputs["custom"]))
+            finally:
+                os.chdir(previous_cwd)
+
+        self.assertTrue(result["success"])
+        request_data = post.call_args.kwargs["json"]
+        self.assertEqual(request_data["inputs"]["android_arch"], "armv7")
+        self.assertEqual(custom_config["hide-android-connection-notification"], "Y")
+        self.assertEqual(custom_config["hide-android-connection-card"], "Y")

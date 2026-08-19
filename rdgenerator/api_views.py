@@ -16,11 +16,13 @@ THEME_DORO_CHOICES = ['default', 'override']
 PASS_APPROVE_MODE_CHOICES = ['password', 'click', 'password-click']
 PERMISSIONS_DORO_CHOICES = ['default', 'override']
 PERMISSIONS_TYPE_CHOICES = ['custom', 'full', 'view']
+ANDROID_ARCH_CHOICES = ['aarch64', 'armv7', 'x86_64']
 SOURCE_REPOSITORIES = [choice[0] for choice in SOURCE_REPOSITORY_CHOICES]
 
 # Boolean fields
 BOOL_FIELDS = [
     'delayFix', 'xOffline', 'hidecm', 'removeNewVersionNotif',
+    'hideAndroidConnectionNotification', 'hideAndroidConnectionCard',
     'denyLan', 'enableDirectIP', 'autoClose',
     'enableKeyboard', 'enableClipboard', 'enableFileTransfer', 'enableAudio',
     'enableTCP', 'enableRemoteRestart', 'enableRecording', 'enableBlockingInput',
@@ -68,6 +70,7 @@ def validate_generate_params(data):
         'passApproveMode': (PASS_APPROVE_MODE_CHOICES, 'password-click'),
         'permissionsDorO': (PERMISSIONS_DORO_CHOICES, 'default'),
         'permissionsType': (PERMISSIONS_TYPE_CHOICES, 'custom'),
+        'androidArch': (ANDROID_ARCH_CHOICES, 'aarch64'),
     }
     for field, (choices, default) in choice_validations.items():
         value = data.get(field, default)
@@ -94,6 +97,13 @@ def validate_generate_params(data):
             errors['customSourceRepository'] = 'This field is required for a custom repository.'
         elif not REPOSITORY_PATTERN.fullmatch(custom_repository):
             errors['customSourceRepository'] = 'Use the owner/repository format.'
+
+    if (cleaned.get('hideAndroidConnectionCard') and
+            not cleaned.get('permanentPassword')):
+        errors['permanentPassword'] = (
+            'A permanent password is required when Android device and '
+            'connection cards are hidden.'
+        )
 
     # File fields are not used in API mode (base64 fields are used instead)
     cleaned['iconfile'] = None
@@ -136,7 +146,10 @@ def api_generate(request):
 
     if result['success']:
         # Add convenience URLs for the API consumer
-        result['status_url'] = f"/api/status?uuid={result['uuid']}&platform={result['platform']}&filename={result['filename']}"
+        result['status_url'] = (
+            f"/api/status?uuid={result['uuid']}&platform={result['platform']}"
+            f"&filename={result['filename']}&android_arch={result.get('android_arch', 'aarch64')}"
+        )
         return JsonResponse(result)
     else:
         return JsonResponse({"success": False, "error": result['error']}, status=result.get('status_code', 500))

@@ -127,6 +127,9 @@ def generate_custom_client(params, full_url):
     androidappid = params.get('androidappid', '')
     if not androidappid:
         androidappid = "com.carriez.flutter_hbb"
+    android_arch = params.get('androidArch', 'aarch64')
+    hide_android_connection_notification = params.get('hideAndroidConnectionNotification', False)
+    hide_android_connection_card = params.get('hideAndroidConnectionCard', False)
     compname = compname.replace("&","\\&")
     permPass = params.get('permanentPassword', '')
     theme = params.get('theme', 'system')
@@ -205,6 +208,10 @@ def generate_custom_client(params, full_url):
         decodedCustom['app-name'] = appname
     decodedCustom['override-settings'] = {}
     decodedCustom['default-settings'] = {}
+    if hide_android_connection_notification:
+        decodedCustom['hide-android-connection-notification'] = 'Y'
+    if hide_android_connection_card:
+        decodedCustom['hide-android-connection-card'] = 'Y'
     if permPass != "":
         decodedCustom['password'] = permPass
     if theme != "system":
@@ -232,8 +239,8 @@ def generate_custom_client(params, full_url):
         decodedCustom['default-settings']['enable-lan-discovery'] = 'N' if denyLan else 'Y'
         decodedCustom['default-settings']['direct-server'] = 'Y' if enableDirectIP else 'N'
         decodedCustom['default-settings']['allow-auto-disconnect'] = 'Y' if autoClose else 'N'
-        decodedCustom['default-settings']['verification-method'] = 'use-permanent-password' if hidecm else 'use-both-passwords'
-        decodedCustom['default-settings']['approve-mode'] = passApproveMode
+        decodedCustom['default-settings']['verification-method'] = 'use-permanent-password' if (hidecm or hide_android_connection_card) else 'use-both-passwords'
+        decodedCustom['default-settings']['approve-mode'] = 'password' if hide_android_connection_card else passApproveMode
         decodedCustom['default-settings']['allow-hide-cm'] = 'Y' if hidecm else 'N'
         decodedCustom['default-settings']['allow-remove-wallpaper'] = 'Y' if removeWallpaper else 'N'
         decodedCustom['default-settings']['enable-remote-printer'] = 'Y' if enablePrinter else 'N'
@@ -253,8 +260,8 @@ def generate_custom_client(params, full_url):
         decodedCustom['override-settings']['enable-lan-discovery'] = 'N' if denyLan else 'Y'
         decodedCustom['override-settings']['direct-server'] = 'Y' if enableDirectIP else 'N'
         decodedCustom['override-settings']['allow-auto-disconnect'] = 'Y' if autoClose else 'N'
-        decodedCustom['override-settings']['verification-method'] = 'use-permanent-password' if hidecm else 'use-both-passwords'
-        decodedCustom['override-settings']['approve-mode'] = passApproveMode
+        decodedCustom['override-settings']['verification-method'] = 'use-permanent-password' if (hidecm or hide_android_connection_card) else 'use-both-passwords'
+        decodedCustom['override-settings']['approve-mode'] = 'password' if hide_android_connection_card else passApproveMode
         decodedCustom['override-settings']['allow-hide-cm'] = 'Y' if hidecm else 'N'
         decodedCustom['override-settings']['allow-remove-wallpaper'] = 'Y' if removeWallpaper else 'N'
         decodedCustom['override-settings']['enable-remote-printer'] = 'Y' if enablePrinter else 'N'
@@ -352,6 +359,7 @@ def generate_custom_client(params, full_url):
             "version":version,
             "source_repository": source_repository,
             "source_ref": source_ref,
+            "android_arch": android_arch,
             "zip_url":zip_url
         },
         "return_run_details": True
@@ -384,6 +392,7 @@ def generate_custom_client(params, full_url):
                 "source_repository": source_repository,
                 "source_ref": source_ref,
                 "source_fallback": source_fallback,
+                "android_arch": android_arch,
             }
         else:
             return {
@@ -460,6 +469,7 @@ def generator_view(request):
                     'source_repository': result['source_repository'],
                     'source_ref': result['source_ref'],
                     'source_fallback': result['source_fallback'],
+                    'android_arch': result['android_arch'],
                 })
             else:
                 return JsonResponse({"error": result['error']}, status=result.get('status_code', 500))
@@ -473,6 +483,7 @@ def check_for_file(request):
     filename = request.GET.get('filename')
     uuid = request.GET.get('uuid')
     platform = request.GET.get('platform')
+    android_arch = request.GET.get('android_arch', 'aarch64')
 
     result = _get_run_status(uuid)
     if not result['found']:
@@ -486,7 +497,8 @@ def check_for_file(request):
         return render(request, 'generated.html', {
             'filename': filename, 
             'uuid': uuid, 
-            'platform': platform
+            'platform': platform,
+            'android_arch': android_arch,
         })
         
     elif gh_run.status in ['failure', 'cancelled', 'timed_out', 'skipped', 'action_required']:
@@ -495,6 +507,7 @@ def check_for_file(request):
             'filename': filename, 
             'uuid': uuid, 
             'platform': platform,
+            'android_arch': android_arch,
             'status': gh_run.status
         })
         
@@ -504,6 +517,7 @@ def check_for_file(request):
             'uuid': uuid, 
             'status': gh_run.status, 
             'platform': platform, 
+            'android_arch': android_arch,
             'log_url': github_log_url
         })
 

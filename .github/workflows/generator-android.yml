@@ -18,6 +18,15 @@ on:
         required: true
         default: '1.4.9'
         type: string
+      android_arch:
+        description: 'Android CPU architecture'
+        required: true
+        default: 'aarch64'
+        type: choice
+        options:
+          - aarch64
+          - armv7
+          - x86_64
       zip_url:
         description: 'url to zip of json'
         required: true
@@ -70,28 +79,9 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        job:
-          - {
-              arch: aarch64,
-              target: aarch64-linux-android,
-              os: ubuntu-24.04,
-              reltype: release,
-              suffix: "",
-            }
-          - {
-              arch: armv7,
-              target: armv7-linux-androideabi,
-              os: ubuntu-24.04,
-              reltype: release,
-              suffix: "",
-            }
-          - {
-              arch: x86_64,
-              target: x86_64-linux-android,
-              os: ubuntu-24.04,
-              reltype: release,
-              suffix: "",
-            }
+        job: ${{ fromJSON(inputs.android_arch == 'armv7' && '[{"arch":"armv7","target":"armv7-linux-androideabi","os":"ubuntu-24.04","reltype":"release","suffix":""}]' || inputs.android_arch == 'x86_64' && '[{"arch":"x86_64","target":"x86_64-linux-android","os":"ubuntu-24.04","reltype":"release","suffix":""}]' || '[{"arch":"aarch64","target":"aarch64-linux-android","os":"ubuntu-24.04","reltype":"release","suffix":""}]') }}
+        # Keep the job object shape below in the expression above in sync with
+        # the target-specific build cases used later in this workflow.
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v4

@@ -300,6 +300,12 @@
                     {{ form.settings }}<br><br>
                     <label for="{{ form.androidappid.id_for_label }}">Custom Android App ID (replaces 'com.carriez.flutter_hbb', leave blank to use default):</label>
                     {{ form.androidappid }}<br><br>
+                    <div id="android-build-options">
+                        <label for="{{ form.androidArch.id_for_label }}">Android Architecture:</label>
+                        {{ form.androidArch }}<br><br>
+                        <label for="{{ form.hideAndroidConnectionNotification.id_for_label }}">{{ form.hideAndroidConnectionNotification }} Hide all Android connection request and connected notifications</label><br>
+                        <label for="{{ form.hideAndroidConnectionCard.id_for_label }}">{{ form.hideAndroidConnectionCard }} Hide the device information and current connection cards (requires permanent password)</label><br><br>
+                    </div>
             </div>
 
             <div class="section">
@@ -430,11 +436,20 @@
         sourceRepositorySelect.addEventListener('change', toggleCustomSourceRepository);
         toggleCustomSourceRepository();
 
+        const platformSelect = document.getElementById('id_platform');
+        const androidBuildOptions = document.getElementById('android-build-options');
+        function toggleAndroidBuildOptions() {
+            androidBuildOptions.style.display = platformSelect.value === 'android' ? 'block' : 'none';
+        }
+        platformSelect.addEventListener('change', toggleAndroidBuildOptions);
+        toggleAndroidBuildOptions();
+
         document.querySelectorAll('.platform-icon').forEach(icon => {
             icon.addEventListener('click', function() {
                 document.querySelectorAll('.platform-icon').forEach(i => i.classList.remove('active'));
                 this.classList.add('active');
-                document.getElementById('id_platform').value = this.dataset.platform;
+                platformSelect.value = this.dataset.platform;
+                toggleAndroidBuildOptions();
             });
         });
         document.getElementById("{{ form.iconfile.id_for_label }}").addEventListener('change', function(event) {
@@ -704,6 +719,7 @@
                                 }
                             }
                             toggleCustomSourceRepository();
+                            toggleAndroidBuildOptions();
                         } catch (error) {
                             alert("Error loading data. Invalid JSON file.");
                         }

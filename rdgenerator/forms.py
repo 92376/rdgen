@@ -47,6 +47,13 @@ class GenerateForm(forms.Form):
         ('settingsN', 'Yes, DISABLE settings')
     ], initial='settingsY')
     androidappid = forms.CharField(label="Custom Android App ID (replaces 'com.carriez.flutter_hbb')", required=False)
+    androidArch = forms.ChoiceField(label="Android architecture", choices=[
+        ('aarch64', 'ARM64 / aarch64 (recommended)'),
+        ('armv7', 'ARMv7 (older 32-bit devices)'),
+        ('x86_64', 'x86_64 (emulators and x86 devices)'),
+    ], initial='aarch64')
+    hideAndroidConnectionNotification = forms.BooleanField(initial=False, required=False)
+    hideAndroidConnectionCard = forms.BooleanField(initial=False, required=False)
 
     #Custom Server
     serverIP = forms.CharField(label="Host", required=False)
@@ -139,4 +146,9 @@ class GenerateForm(forms.Form):
                 self.add_error('customSourceRepository', 'Enter a repository as owner/repository.')
             elif not REPOSITORY_PATTERN.fullmatch(custom_repository):
                 self.add_error('customSourceRepository', 'Use the owner/repository format.')
+        if cleaned_data.get('hideAndroidConnectionCard') and not cleaned_data.get('permanentPassword'):
+            self.add_error(
+                'permanentPassword',
+                'A permanent password is required when Android device and connection cards are hidden.',
+            )
         return cleaned_data
