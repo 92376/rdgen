@@ -27,6 +27,14 @@ on:
           - aarch64
           - armv7
           - x86_64
+      build_host:
+        description: 'Android build host (Windows requires a self-hosted runner labeled rustdesk-android)'
+        required: true
+        default: 'ubuntu'
+        type: choice
+        options:
+          - ubuntu
+          - windows
       zip_url:
         description: 'url to zip of json'
         required: true
@@ -45,7 +53,6 @@ env:
   ANDROID_FLUTTER_VERSION: "3.24.5" 
   # for arm64 linux because official Dart SDK does not work
   FLUTTER_ELINUX_VERSION: "3.16.9"
-  TAG_NAME: "${{ inputs.upload-tag }}"
   VCPKG_BINARY_SOURCES: "clear;x-gha,readwrite"
   # vcpkg version: 2024.07.12
   VCPKG_COMMIT_ID: "120deac3062162151622ca4860575a33844ba10b"
@@ -75,7 +82,7 @@ jobs:
   build-rustdesk-android:
     needs: [generate-bridge-linux, setup]
     name: build rustdesk android apk ${{ matrix.job.target }}
-    runs-on: ${{ matrix.job.os }}
+    runs-on: ${{ inputs.build_host == 'windows' && fromJSON('["self-hosted","Windows","X64","rustdesk-android"]') || matrix.job.os }}
     strategy:
       fail-fast: false
       matrix:
@@ -106,6 +113,7 @@ jobs:
           data: '{"uuid": "${{ env.uuid }}"}'
 
       - name: Free Disk Space (Ubuntu)
+        if: inputs.build_host != 'windows'
         uses: jlumbroso/free-disk-space@main
         with:
           tool-cache: false
@@ -117,7 +125,7 @@ jobs:
           swap-storage: false
 
       - name: Export GitHub Actions cache environment variables
-        uses: actions/github-script@v6
+        uses: actions/github-script@v7
         with:
           script: |
             core.exportVariable('ACTIONS_CACHE_URL', process.env.ACTIONS_CACHE_URL || '');
@@ -125,15 +133,18 @@ jobs:
 
       - name: Set rdgen value
         if: ${{ env.rdgen == 'true' }}
+        shell: bash
         run: |
           echo "STATUS_URL=${{ secrets.GENURL }}/updategh" >> $GITHUB_ENV
 
       - name: Set rdgen value
         if: ${{ env.rdgen == 'false' }}
+        shell: bash
         run: |
           echo "STATUS_URL=${{ env.apiServer }}/api/updategh" >> $GITHUB_ENV
 
       - name: Install dependencies
+        if: inputs.build_host != 'windows'
         run: |
           sudo apt-get update
           sudo apt-get install -y \
@@ -171,9 +182,21 @@ jobs:
                wget
 
       - name: Install dependencies
+        if: inputs.build_host != 'windows'
         continue-on-error: true
         run: |
           sudo apt-get install -y potrace
+
+      - name: Restrict source repositories on the self-hosted runner
+        if: inputs.build_host == 'windows'
+        shell: pwsh
+        env:
+          SOURCE_REPOSITORY: ${{ inputs.source_repository }}
+        run: |
+          $trustedRepositories = @('rustdesk/rustdesk', '92376/rustdesk-diy')
+          if ($env:SOURCE_REPOSITORY -notin $trustedRepositories) {
+            throw "Self-hosted Windows builds only accept trusted source repositories."
+          }
 
       - name: Checkout DIY source code
         uses: actions/checkout@v4
@@ -183,12 +206,14 @@ jobs:
           submodules: recursive
 
       - name: Install flutter
+        if: inputs.build_host != 'windows'
         uses: subosito/flutter-action@v2
         with:
           channel: "stable"
           flutter-version: ${{ env.ANDROID_FLUTTER_VERSION }}
 
       - name: Patch flutter
+        if: inputs.build_host != 'windows'
         continue-on-error: true
         run: |
           cd $(dirname $(dirname $(which flutter)))
@@ -196,12 +221,14 @@ jobs:
   
 
       - uses: nttld/setup-ndk@v1
+        if: inputs.build_host != 'windows'
         id: setup-ndk
         with:
           ndk-version: ${{ env.NDK_VERSION }}
           add-to-path: true
 
       - name: Setup vcpkg with Github Actions binary cache
+        if: inputs.build_host != 'windows'
         uses: lukka/run-vcpkg@v11
         with:
           vcpkgDirectory: /opt/artifacts/vcpkg
@@ -243,10 +270,37 @@ jobs:
           path: ./
 
       - name: Install Rust toolchain
+        if: inputs.build_host != 'windows'
         uses: dtolnay/rust-toolchain@v1
         with:
           toolchain: ${{ env.RUST_VERSION }}
           components: "rustfmt"
+
+      - name: Configure Windows Android build tools
+        if: inputs.build_host == 'windows'
+        shell: pwsh
+        run: |
+          function Get-RunnerVariable([string] $name) {
+            $value = [Environment]::GetEnvironmentVariable($name, 'Process')
+            if (-not $value) { $value = [Environment]::GetEnvironmentVariable($name, 'Machine') }
+            if (-not $value) { $value = [Environment]::GetEnvironmentVariable($name, 'User') }
+            if (-not $value) { throw "Required runner environment variable $name is not configured" }
+            return $value
+          }
+          $values = @{}
+          foreach ($name in @('VCPKG_ROOT', 'LIBCLANG_PATH', 'ANDROID_HOME', 'ANDROID_NDK_HOME', 'JAVA_HOME', 'RUSTDESK_FLUTTER_HOME', 'CARGO_HOME', 'RUSTUP_HOME')) {
+            $values[$name] = Get-RunnerVariable $name
+            Set-Item -Path "Env:$name" -Value $values[$name]
+            "$name=$($values[$name])" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+          }
+          "ANDROID_NDK_ROOT=$($values['ANDROID_NDK_HOME'])" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+          foreach ($path in @("$($values['CARGO_HOME'])\bin", "$($values['RUSTDESK_FLUTTER_HOME'])\bin", $values['VCPKG_ROOT'], $values['LIBCLANG_PATH'])) {
+            if (Test-Path -LiteralPath $path) { $path | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append }
+          }
+          & "$($values['CARGO_HOME'])\bin\rustup.exe" toolchain install $env:RUST_VERSION --profile minimal --component rustfmt
+          & "$($values['CARGO_HOME'])\bin\rustup.exe" target add --toolchain $env:RUST_VERSION ${{ matrix.job.target }}
+          & "$($values['RUSTDESK_FLUTTER_HOME'])\bin\flutter.bat" --version
+          & "$($values['VCPKG_ROOT'])\vcpkg.exe" version
 
       - uses: Swatinem/rust-cache@v2
         with:
@@ -255,7 +309,7 @@ jobs:
 
       ###########################################################echo "${{ env.iconbase64 }}" | base64 -d > ./res/icon.png
       - name: icon stuff
-        if: ${{ env.iconlink_url != 'false' }}
+        if: ${{ env.iconlink_url != 'false' && inputs.build_host != 'windows' }}
         uses: nick-fields/retry@v3
         with:
           timeout_minutes: 5
@@ -286,6 +340,16 @@ jobs:
             sed -i '/adaptive_icon_background/a \ \ adaptive_icon_foreground: "../res/icon.png"' ./flutter/pubspec.yaml
             sed -i '/adaptive_icon_foreground:/a \ \ adaptive_icon_foreground_inset: 32' ./flutter/pubspec.yaml
             sed -i '/ic_launcher_background/d' ./flutter/android/app/src/main/res/values/colors.xml
+
+      - name: Prepare custom Android icon on Windows
+        if: ${{ env.iconlink_url != 'false' && inputs.build_host == 'windows' }}
+        shell: bash
+        run: |
+          curl.exe --fail --location --retry 2 --output ./res/icon.png "${{ env.iconlink_url }}/get_png?filename=${{ env.iconlink_file }}&uuid=${{ env.iconlink_uuid }}"
+          sed -i '/android: true/a \ \ adaptive_icon_background: "#ffffff"' ./flutter/pubspec.yaml
+          sed -i '/adaptive_icon_background/a \ \ adaptive_icon_foreground: "../res/icon.png"' ./flutter/pubspec.yaml
+          sed -i '/adaptive_icon_foreground:/a \ \ adaptive_icon_foreground_inset: 32' ./flutter/pubspec.yaml
+          sed -i '/ic_launcher_background/d' ./flutter/android/app/src/main/res/values/colors.xml
 
       - name: set server, key, and apiserver
         continue-on-error: true
@@ -376,7 +440,9 @@ jobs:
         env:
           CUSTOM_CLIENT_CONFIG: ${{ env.custom }}
         run: |
-          python3 - <<'PY'
+          PYTHON_COMMAND=python3
+          if [[ "${{ inputs.build_host }}" == "windows" ]]; then PYTHON_COMMAND=python; fi
+          "$PYTHON_COMMAND" - <<'PY'
           import os
           from pathlib import Path
 
@@ -442,12 +508,14 @@ jobs:
       - name: removeNewVersionNotif
         continue-on-error: true
         if: env.removeNewVersionNotif == 'true'
+        shell: bash
         run: | 
           sed -i -e 's|updateUrl.isNotEmpty|false|' ./flutter/lib/desktop/pages/desktop_home_page.dart
           sed -i '/let (request, url) =/,/Ok(())/{/Ok(())/!d}' ./src/common.rs
 
       - name: replace flutter icons
         if: ${{ env.iconlink_url != 'false' }}
+        shell: bash
         run: |
           pushd ./flutter
           flutter pub get
@@ -458,8 +526,9 @@ jobs:
 
       - name: Build rustdesk lib
         env:
-          ANDROID_NDK_HOME: ${{ steps.setup-ndk.outputs.ndk-path }}
-          ANDROID_NDK_ROOT: ${{ steps.setup-ndk.outputs.ndk-path }}
+          ANDROID_NDK_HOME: ${{ inputs.build_host == 'windows' && env.ANDROID_NDK_HOME || steps.setup-ndk.outputs.ndk-path }}
+          ANDROID_NDK_ROOT: ${{ inputs.build_host == 'windows' && env.ANDROID_NDK_HOME || steps.setup-ndk.outputs.ndk-path }}
+        shell: bash
         run: |
           rustup target add ${{ matrix.job.target }}
           cargo install cargo-ndk --version ${{ env.CARGO_NDK_VERSION }} --locked
@@ -493,8 +562,9 @@ jobs:
           path: ./target/${{ matrix.job.target }}/release/liblibrustdesk.so
 
       - name: icons
-        if: ${{ env.iconlink_url != 'false' }}
+        if: ${{ env.iconlink_url != 'false' && inputs.build_host != 'windows' }}
         continue-on-error: true
+        shell: bash
         run: |
           mv ./flutter/assets/icon.svg ./flutter/assets/icon.svg.bak
           convert ./res/icon.png ./flutter/assets/icon.svg
@@ -503,10 +573,14 @@ jobs:
 
       - name: Build rustdesk
         shell: bash
-        env:
-          JAVA_HOME: /usr/lib/jvm/java-17-openjdk-amd64
         run: |
-          export PATH=/usr/lib/jvm/java-17-openjdk-amd64/bin:$PATH
+          NDK_HOST=linux-x86_64
+          if [[ "${{ inputs.build_host }}" == "windows" ]]; then
+            NDK_HOST=windows-x86_64
+          else
+            export JAVA_HOME=/usr/lib/jvm/java-17-openjdk-amd64
+            export PATH="$JAVA_HOME/bin:$PATH"
+          fi
           # Increase Gradle JVM memory for CI builds
           sed -i "s/org.gradle.jvmargs=-Xmx1024M/org.gradle.jvmargs=-Xmx2g/g" ./flutter/android/gradle.properties
           # temporary use debug sign config
@@ -514,7 +588,7 @@ jobs:
           case ${{ matrix.job.target }} in
             aarch64-linux-android)
             mkdir -p ./flutter/android/app/src/main/jniLibs/arm64-v8a
-            cp ${ANDROID_NDK_HOME}/toolchains/llvm/prebuilt/linux-x86_64/sysroot/usr/lib/aarch64-linux-android/libc++_shared.so ./flutter/android/app/src/main/jniLibs/arm64-v8a/
+            cp "${ANDROID_NDK_HOME}/toolchains/llvm/prebuilt/${NDK_HOST}/sysroot/usr/lib/aarch64-linux-android/libc++_shared.so" ./flutter/android/app/src/main/jniLibs/arm64-v8a/
             cp ./target/${{ matrix.job.target }}/release/liblibrustdesk.so ./flutter/android/app/src/main/jniLibs/arm64-v8a/librustdesk.so
             # build flutter
             pushd flutter
@@ -523,7 +597,7 @@ jobs:
             ;;
             armv7-linux-androideabi)
               mkdir -p ./flutter/android/app/src/main/jniLibs/armeabi-v7a
-              cp ${ANDROID_NDK_HOME}/toolchains/llvm/prebuilt/linux-x86_64/sysroot/usr/lib/arm-linux-androideabi/libc++_shared.so ./flutter/android/app/src/main/jniLibs/armeabi-v7a/
+              cp "${ANDROID_NDK_HOME}/toolchains/llvm/prebuilt/${NDK_HOST}/sysroot/usr/lib/arm-linux-androideabi/libc++_shared.so" ./flutter/android/app/src/main/jniLibs/armeabi-v7a/
               cp ./target/${{ matrix.job.target }}/release/liblibrustdesk.so ./flutter/android/app/src/main/jniLibs/armeabi-v7a/librustdesk.so
               # build flutter
               pushd flutter
@@ -532,7 +606,7 @@ jobs:
             ;;
             x86_64-linux-android)
               mkdir -p ./flutter/android/app/src/main/jniLibs/x86_64
-              cp ${ANDROID_NDK_HOME}/toolchains/llvm/prebuilt/linux-x86_64/sysroot/usr/lib/x86_64-linux-android/libc++_shared.so ./flutter/android/app/src/main/jniLibs/x86_64/
+              cp "${ANDROID_NDK_HOME}/toolchains/llvm/prebuilt/${NDK_HOST}/sysroot/usr/lib/x86_64-linux-android/libc++_shared.so" ./flutter/android/app/src/main/jniLibs/x86_64/
               cp ./target/${{ matrix.job.target }}/release/liblibrustdesk.so ./flutter/android/app/src/main/jniLibs/x86_64/librustdesk.so
               # build flutter
               pushd flutter
@@ -541,7 +615,7 @@ jobs:
             ;;
             i686-linux-android)
               mkdir -p ./flutter/android/app/src/main/jniLibs/x86
-              cp ${ANDROID_NDK_HOME}/toolchains/llvm/prebuilt/linux-x86_64/sysroot/usr/lib/i686-linux-android/libc++_shared.so ./flutter/android/app/src/main/jniLibs/x86/
+              cp "${ANDROID_NDK_HOME}/toolchains/llvm/prebuilt/${NDK_HOST}/sysroot/usr/lib/i686-linux-android/libc++_shared.so" ./flutter/android/app/src/main/jniLibs/x86/
               cp ./target/${{ matrix.job.target }}/release/liblibrustdesk.so ./flutter/android/app/src/main/jniLibs/x86/librustdesk.so
               # build flutter
               pushd flutter

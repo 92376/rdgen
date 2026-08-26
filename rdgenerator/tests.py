@@ -125,6 +125,8 @@ class GenerateApiTests(TestCase):
             "passApproveMode": "password-click",
             "permissionsDorO": "default",
             "permissionsType": "custom",
+            "androidArch": "aarch64",
+            "androidBuildHost": "ubuntu",
         })
 
         self.assertTrue(form.is_valid(), form.errors)
@@ -133,6 +135,7 @@ class GenerateApiTests(TestCase):
         form = GenerateForm()
 
         self.assertEqual(form.fields["androidArch"].initial, "aarch64")
+        self.assertEqual(form.fields["androidBuildHost"].initial, "ubuntu")
         self.assertFalse(form.fields["hideAndroidConnectionNotification"].initial)
         self.assertFalse(form.fields["hideAndroidConnectionCard"].initial)
 
@@ -303,6 +306,7 @@ class WorkflowDispatchTests(TestCase):
                     "version": "1.4.9",
                     "sourceRepository": DIY_REPOSITORY,
                     "androidArch": "armv7",
+                    "androidBuildHost": "windows",
                     "hideAndroidConnectionNotification": True,
                     "hideAndroidConnectionCard": True,
                 }, "https://build.example.com")
@@ -317,6 +321,7 @@ class WorkflowDispatchTests(TestCase):
         self.assertTrue(result["success"])
         request_data = post.call_args.kwargs["json"]
         self.assertEqual(request_data["inputs"]["android_arch"], "armv7")
+        self.assertEqual(request_data["inputs"]["build_host"], "windows")
         self.assertEqual(
             custom_config["default-settings"]["hide-android-connection-notification"],
             "Y",

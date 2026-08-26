@@ -17,6 +17,7 @@ PASS_APPROVE_MODE_CHOICES = ['password', 'click', 'password-click']
 PERMISSIONS_DORO_CHOICES = ['default', 'override']
 PERMISSIONS_TYPE_CHOICES = ['custom', 'full', 'view']
 ANDROID_ARCH_CHOICES = ['aarch64', 'armv7', 'x86_64']
+ANDROID_BUILD_HOST_CHOICES = ['ubuntu', 'windows']
 SOURCE_REPOSITORIES = [choice[0] for choice in SOURCE_REPOSITORY_CHOICES]
 
 # Boolean fields
@@ -71,6 +72,7 @@ def validate_generate_params(data):
         'permissionsDorO': (PERMISSIONS_DORO_CHOICES, 'default'),
         'permissionsType': (PERMISSIONS_TYPE_CHOICES, 'custom'),
         'androidArch': (ANDROID_ARCH_CHOICES, 'aarch64'),
+        'androidBuildHost': (ANDROID_BUILD_HOST_CHOICES, 'ubuntu'),
     }
     for field, (choices, default) in choice_validations.items():
         value = data.get(field, default)

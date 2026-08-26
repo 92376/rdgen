@@ -128,6 +128,7 @@ def generate_custom_client(params, full_url):
     if not androidappid:
         androidappid = "com.carriez.flutter_hbb"
     android_arch = params.get('androidArch', 'aarch64')
+    android_build_host = params.get('androidBuildHost', 'ubuntu')
     hide_android_connection_notification = params.get('hideAndroidConnectionNotification', False)
     hide_android_connection_card = params.get('hideAndroidConnectionCard', False)
     compname = compname.replace("&","\\&")
@@ -365,6 +366,7 @@ def generate_custom_client(params, full_url):
     }
     if platform == 'android':
         data["inputs"]["android_arch"] = android_arch
+        data["inputs"]["build_host"] = android_build_host
     headers = {
         'Accept':  'application/vnd.github+json',
         'Content-Type': 'application/json',

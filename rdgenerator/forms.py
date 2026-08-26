@@ -52,6 +52,10 @@ class GenerateForm(forms.Form):
         ('armv7', 'ARMv7 (older 32-bit devices)'),
         ('x86_64', 'x86_64 (emulators and x86 devices)'),
     ], initial='aarch64')
+    androidBuildHost = forms.ChoiceField(label="Android build host", choices=[
+        ('ubuntu', 'GitHub-hosted Ubuntu'),
+        ('windows', 'Self-hosted Windows (official/DIY repositories only)'),
+    ], initial='ubuntu')
     hideAndroidConnectionNotification = forms.BooleanField(initial=False, required=False)
     hideAndroidConnectionCard = forms.BooleanField(initial=False, required=False)
 
