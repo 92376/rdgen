@@ -34,15 +34,16 @@
 5. Now just run ```docker compose up -d```
 
 
-## Use a self hosted github runner for faster client generation (Windows only right now)
+## Use a self hosted GitHub runner for faster Windows client generation
 
-1. First you need to set up a Windows computer that can build rustdesk
-2. Once you can build rustdesk, follow github instructions for setting up a self hosted github runner
-3. Now you need to add an environment variable SH_SECRET, which has a key/password that you will need to send to the server
-4. Save a json configuration file from your rdgen web ui
-5. Use the [rdgen-cli] (https://github.com/AlekseyLapunov/rdgen-cli) to submit your json configuration with the added key "sh_secret_field" with the value matching your SH_SECRET
+1. Set up a Windows computer that can build RustDesk.
+2. Register the repository runner with the `Windows`, `X64`, and `rustdesk-windows` labels.
+3. In the Web generator, select **Windows 64Bit** and set **Windows Build Host** to **Self-hosted Windows**.
+4. No `SH_SECRET` environment variable or secret field is required. The self-hosted workflow publishes unsigned EXE and MSI files.
 
 ## Use your own Windows code signing token
+
+This optional section applies to the GitHub-hosted Windows workflow. The self-hosted workflow intentionally stays unsigned.
 
 1. You will need a USB signing token plugged into a Windows computer
 2. On the computer with the USB signing token, you need to make sure it is set up correctly to sign using signtool.exe

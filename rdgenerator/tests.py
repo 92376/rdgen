@@ -127,6 +127,7 @@ class GenerateApiTests(TestCase):
             "permissionsType": "custom",
             "androidArch": "aarch64",
             "androidBuildHost": "ubuntu",
+            "windowsBuildHost": "github",
         })
 
         self.assertTrue(form.is_valid(), form.errors)
@@ -136,6 +137,7 @@ class GenerateApiTests(TestCase):
 
         self.assertEqual(form.fields["androidArch"].initial, "aarch64")
         self.assertEqual(form.fields["androidBuildHost"].initial, "ubuntu")
+        self.assertEqual(form.fields["windowsBuildHost"].initial, "github")
         self.assertFalse(form.fields["hideAndroidConnectionNotification"].initial)
         self.assertFalse(form.fields["hideAndroidConnectionCard"].initial)
 
@@ -147,6 +149,16 @@ class GenerateApiTests(TestCase):
         })
 
         self.assertIn("androidArch", errors)
+
+
+    def test_json_api_validates_windows_build_host(self):
+        _, errors = validate_generate_params({
+            "exename": "support-client",
+            "platform": "windows",
+            "windowsBuildHost": "invalid",
+        })
+
+        self.assertIn("windowsBuildHost", errors)
 
 
 class DownloadTests(TestCase):
@@ -268,12 +280,55 @@ class WorkflowDispatchTests(TestCase):
         self.assertEqual(request_data["inputs"]["source_ref"], "1.4.9")
         self.assertNotIn("android_arch", request_data["inputs"])
         self.assertEqual(post.call_args.kwargs["timeout"], 20)
+        self.assertIn(
+            "/actions/workflows/generator-windows.yml/dispatches",
+            post.call_args.args[0],
+        )
         self.assertNotIn("enable-lan-discovery", custom_config)
         self.assertEqual(
             custom_config["default-settings"]["enable-lan-discovery"], "N"
         )
         self.assertEqual(
             custom_config["default-settings"]["direct-server"], "Y"
+        )
+
+    @override_settings(
+        GHUSER="92376",
+        REPONAME="rdgen",
+        GHBRANCH="master",
+        GHBEARER="test-token",
+        ZIP_PASSWORD="test-password",
+        GENURL="https://build.example.com",
+        RUSTDESK_REPOSITORY="92376/rustdesk-diy",
+    )
+    @patch("rdgenerator.views._github_branch_exists", return_value=True)
+    @patch("rdgenerator.views.requests.post")
+    def test_dispatches_self_hosted_windows_without_secret(
+        self, post, branch_exists
+    ):
+        post.return_value = Mock(
+            status_code=200,
+            json=Mock(return_value={"workflow_run_id": 125, "html_url": None}),
+        )
+
+        previous_cwd = os.getcwd()
+        with tempfile.TemporaryDirectory() as temp_dir:
+            os.chdir(temp_dir)
+            try:
+                result = generate_custom_client({
+                    "exename": "windows-client",
+                    "platform": "windows",
+                    "version": "1.4.9",
+                    "sourceRepository": DIY_REPOSITORY,
+                    "windowsBuildHost": "windows",
+                }, "https://build.example.com")
+            finally:
+                os.chdir(previous_cwd)
+
+        self.assertTrue(result["success"])
+        self.assertIn(
+            "/actions/workflows/sh-generator-windows.yml/dispatches",
+            post.call_args.args[0],
         )
 
     @override_settings(

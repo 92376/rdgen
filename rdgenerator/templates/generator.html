@@ -283,6 +283,10 @@
                 </div>
                 <div class="help-text">For non-official repositories, the selected version must exist as a branch. Otherwise the build falls back to rustdesk/rustdesk.</div>
                 <label for="{{ form.delayFix.id_for_label }}">{{ form.delayFix }} Fix connection delay when using third-party API</label>
+                <div id="windows-build-options">
+                    <label for="{{ form.windowsBuildHost.id_for_label }}">Windows Build Host:</label>
+                    {{ form.windowsBuildHost }}
+                </div>
             </div>
         </div>
         <div class="container">   
@@ -440,18 +444,20 @@
 
         const platformSelect = document.getElementById('id_platform');
         const androidBuildOptions = document.getElementById('android-build-options');
-        function toggleAndroidBuildOptions() {
+        const windowsBuildOptions = document.getElementById('windows-build-options');
+        function toggleBuildOptions() {
             androidBuildOptions.style.display = platformSelect.value === 'android' ? 'block' : 'none';
+            windowsBuildOptions.style.display = platformSelect.value === 'windows' ? 'block' : 'none';
         }
-        platformSelect.addEventListener('change', toggleAndroidBuildOptions);
-        toggleAndroidBuildOptions();
+        platformSelect.addEventListener('change', toggleBuildOptions);
+        toggleBuildOptions();
 
         document.querySelectorAll('.platform-icon').forEach(icon => {
             icon.addEventListener('click', function() {
                 document.querySelectorAll('.platform-icon').forEach(i => i.classList.remove('active'));
                 this.classList.add('active');
                 platformSelect.value = this.dataset.platform;
-                toggleAndroidBuildOptions();
+                toggleBuildOptions();
             });
         });
         document.getElementById("{{ form.iconfile.id_for_label }}").addEventListener('change', function(event) {

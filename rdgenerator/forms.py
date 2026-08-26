@@ -14,9 +14,12 @@ SOURCE_REPOSITORY_CHOICES = [
 REPOSITORY_PATTERN = re.compile(r'^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$')
 
 class GenerateForm(forms.Form):
-    sh_secret_field = forms.CharField(required=False)
     #Platform
     platform = forms.ChoiceField(choices=[('windows','Windows 64Bit'),('windows-x86','Windows 32Bit'),('linux','Linux'),('android','Android'),('macos','macOS')], initial='windows')
+    windowsBuildHost = forms.ChoiceField(label="Windows build host", choices=[
+        ('github', 'GitHub-hosted Windows'),
+        ('windows', 'Self-hosted Windows (official/DIY repositories only)'),
+    ], initial='github')
     version = forms.ChoiceField(choices=[('master','nightly'),('1.4.9','1.4.9'),('1.4.8','1.4.8'),('1.4.7','1.4.7'),('1.4.6','1.4.6'),('1.4.5','1.4.5'),('1.4.4','1.4.4'),('1.4.3','1.4.3'),('1.4.2','1.4.2'),('1.4.1','1.4.1'),('1.4.0','1.4.0')], initial='1.4.9')
     sourceRepository = forms.ChoiceField(
         label="RustDesk Source Repository",

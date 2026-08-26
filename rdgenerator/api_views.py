@@ -18,6 +18,7 @@ PERMISSIONS_DORO_CHOICES = ['default', 'override']
 PERMISSIONS_TYPE_CHOICES = ['custom', 'full', 'view']
 ANDROID_ARCH_CHOICES = ['aarch64', 'armv7', 'x86_64']
 ANDROID_BUILD_HOST_CHOICES = ['ubuntu', 'windows']
+WINDOWS_BUILD_HOST_CHOICES = ['github', 'windows']
 SOURCE_REPOSITORIES = [choice[0] for choice in SOURCE_REPOSITORY_CHOICES]
 
 # Boolean fields
@@ -32,7 +33,7 @@ BOOL_FIELDS = [
 
 # Optional string fields (no validation needed, just accept as-is)
 OPTIONAL_STR_FIELDS = [
-    'sh_secret_field', 'serverIP', 'key', 'apiServer', 'urlLink', 'downloadLink',
+    'serverIP', 'key', 'apiServer', 'urlLink', 'downloadLink',
     'appname', 'compname', 'androidappid', 'permanentPassword',
     'defaultManual', 'overrideManual',
     'iconbase64', 'logobase64', 'privacybase64',
@@ -73,6 +74,7 @@ def validate_generate_params(data):
         'permissionsType': (PERMISSIONS_TYPE_CHOICES, 'custom'),
         'androidArch': (ANDROID_ARCH_CHOICES, 'aarch64'),
         'androidBuildHost': (ANDROID_BUILD_HOST_CHOICES, 'ubuntu'),
+        'windowsBuildHost': (WINDOWS_BUILD_HOST_CHOICES, 'github'),
     }
     for field, (choices, default) in choice_validations.items():
         value = data.get(field, default)

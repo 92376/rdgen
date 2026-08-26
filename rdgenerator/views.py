@@ -17,6 +17,7 @@ from django.db.models import Q
 from django.views.decorators.csrf import csrf_exempt
 from .forms import (
     CUSTOM_REPOSITORY,
+    DIY_REPOSITORY,
     OFFICIAL_REPOSITORY,
     REPOSITORY_PATTERN,
     GenerateForm,
@@ -81,8 +82,6 @@ def generate_custom_client(params, full_url):
         dict with 'success' key. On success: also includes 'uuid', 'filename', 'platform', 'log_url'.
         On failure: includes 'error' and optionally 'status_code'.
     """
-    user_secret = params.get('sh_secret_field', '')
-    selfhosted = (_settings.SH_SECRET == user_secret)
     platform = params.get('platform', 'windows')
     version = params.get('version', '1.4.9')
     try:
@@ -129,6 +128,14 @@ def generate_custom_client(params, full_url):
         androidappid = "com.carriez.flutter_hbb"
     android_arch = params.get('androidArch', 'aarch64')
     android_build_host = params.get('androidBuildHost', 'ubuntu')
+    windows_build_host = params.get('windowsBuildHost', 'github')
+    if (platform == 'windows' and windows_build_host == 'windows' and
+            source_repository not in (OFFICIAL_REPOSITORY, DIY_REPOSITORY)):
+        return {
+            "success": False,
+            "error": "Self-hosted Windows builds only accept official/DIY repositories.",
+            "status_code": 400,
+        }
     hide_android_connection_notification = params.get('hideAndroidConnectionNotification', False)
     hide_android_connection_card = params.get('hideAndroidConnectionCard', False)
     compname = compname.replace("&","\\&")
@@ -289,10 +296,13 @@ def generate_custom_client(params, full_url):
 
     ####from here run the github action, we need user, repo, access token.
     if platform == 'windows':
-        url = 'https://api.github.com/repos/'+_settings.GHUSER+'/'+_settings.REPONAME+'/actions/workflows/generator-windows.yml/dispatches'
-        if selfhosted:
-            url = 'https://api.github.com/repos/'+_settings.GHUSER+'/'+_settings.REPONAME+'/actions/workflows/sh-generator-windows.yml/dispatches'
-    if platform == 'windows-x86':
+        windows_workflow = (
+            'sh-generator-windows.yml'
+            if windows_build_host == 'windows'
+            else 'generator-windows.yml'
+        )
+        url = 'https://api.github.com/repos/'+_settings.GHUSER+'/'+_settings.REPONAME+'/actions/workflows/'+windows_workflow+'/dispatches'
+    elif platform == 'windows-x86':
         url = 'https://api.github.com/repos/'+_settings.GHUSER+'/'+_settings.REPONAME+'/actions/workflows/generator-windows-x86.yml/dispatches'
     elif platform == 'linux':
         url = 'https://api.github.com/repos/'+_settings.GHUSER+'/'+_settings.REPONAME+'/actions/workflows/generator-linux.yml/dispatches'
@@ -307,8 +317,6 @@ def generate_custom_client(params, full_url):
         url = 'https://api.github.com/repos/'+_settings.GHUSER+'/'+_settings.REPONAME+'/actions/workflows/generator-macos.yml/dispatches'
     else:
         url = 'https://api.github.com/repos/'+_settings.GHUSER+'/'+_settings.REPONAME+'/actions/workflows/generator-windows.yml/dispatches'
-        if selfhosted:
-            url = 'https://api.github.com/repos/'+_settings.GHUSER+'/'+_settings.REPONAME+'/actions/workflows/sh-generator-windows.yml/dispatches'
 
     inputs_raw = {
         "server":server,
