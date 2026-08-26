@@ -28,12 +28,8 @@ on:
 env:
   SCITER_RUST_VERSION: "1.75" # https://github.com/rustdesk/rustdesk/discussions/7503, also 1.78 has ABI change which causes our sciter version not working, https://blog.rust-lang.org/2024/03/30/i128-layout-update.html
   RUST_VERSION: "1.75" # sciter failed on m1 with 1.78 because of https://blog.rust-lang.org/2024/03/30/i128-layout-update.html
-  CARGO_NDK_VERSION: "3.1.2"
-  SCITER_ARMV7_CMAKE_VERSION: "3.29.7"
-  SCITER_NASM_DEBVERSION: "2.15.05-1"
   LLVM_VERSION: "15.0.6"
   FLUTTER_VERSION: "3.24.5"
-  ANDROID_FLUTTER_VERSION: "3.24.5" 
   # for arm64 linux because official Dart SDK does not work
   FLUTTER_ELINUX_VERSION: "3.16.9"
   TAG_NAME: "${{ inputs.upload-tag }}"
@@ -42,10 +38,6 @@ env:
   VCPKG_COMMIT_ID: "120deac3062162151622ca4860575a33844ba10b"
   ARMV7_VCPKG_COMMIT_ID: "6f29f12e82a8293156836ad81cc9bf5af41fe836"
   VERSION: "${{ inputs.version }}"
-  NDK_VERSION: "r28c"
-  #signing keys env variable checks
-  ANDROID_SIGNING_KEY: "${{ secrets.ANDROID_SIGNING_KEY }}"
-  MACOS_P12_BASE64: "${{ secrets.MACOS_P12_BASE64 }}"
   UPLOAD_ARTIFACT: 'true'
   STATUS_URL: "${{ secrets.GENURL }}/updategh"
 
@@ -95,6 +87,7 @@ jobs:
     name: Build Windows
     needs: [build-RustDeskTempTopMostWindow, generate-bridge, setup]
     runs-on: [self-hosted, Windows, X64, rustdesk-windows]
+    timeout-minutes: 120
     strategy:
       fail-fast: false
       matrix:
@@ -161,11 +154,113 @@ jobs:
           name: bridge-artifact
           path: ./
 
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: '3.12'
+      - name: Configure and validate Windows build tools
+        shell: pwsh
+        run: |
+          function Get-RunnerVariable([string] $name, [bool] $required = $true) {
+            $value = [Environment]::GetEnvironmentVariable($name, 'Process')
+            if (-not $value) { $value = [Environment]::GetEnvironmentVariable($name, 'Machine') }
+            if (-not $value) { $value = [Environment]::GetEnvironmentVariable($name, 'User') }
+            if ($required -and -not $value) { throw "Required runner environment variable $name is not configured" }
+            return $value
+          }
 
+          $windowsVcpkgRoot = Get-RunnerVariable 'RUSTDESK_WINDOWS_VCPKG_ROOT' $false
+          if (-not $windowsVcpkgRoot) { $windowsVcpkgRoot = Get-RunnerVariable 'VCPKG_ROOT' }
+          $values = @{
+            VCPKG_ROOT = $windowsVcpkgRoot
+            LIBCLANG_PATH = Get-RunnerVariable 'LIBCLANG_PATH'
+            RUSTDESK_FLUTTER_HOME = Get-RunnerVariable 'RUSTDESK_FLUTTER_HOME'
+            CARGO_HOME = Get-RunnerVariable 'CARGO_HOME'
+            RUSTUP_HOME = Get-RunnerVariable 'RUSTUP_HOME'
+          }
+          foreach ($entry in $values.GetEnumerator()) {
+            if (-not (Test-Path -LiteralPath $entry.Value)) {
+              throw "$($entry.Key) points to a missing path: $($entry.Value)"
+            }
+          }
+
+          $pythonHome = Get-RunnerVariable 'RUSTDESK_PYTHON_HOME' $false
+          if (-not $pythonHome) { $pythonHome = 'D:\develop\python3.13' }
+          $pythonExe = Join-Path $pythonHome 'python.exe'
+          $gitBash = 'C:\Program Files\Git\bin\bash.exe'
+          $vswhere = "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe"
+          if (-not (Test-Path -LiteralPath $vswhere)) { throw "Visual Studio locator is missing: $vswhere" }
+          $vsPath = & $vswhere -latest -products * -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -property installationPath
+          if (-not $vsPath) { throw 'Visual Studio 2022 C++ build tools are not installed' }
+          $vcvars = Join-Path $vsPath 'VC\Auxiliary\Build\vcvars64.bat'
+          if (-not (Test-Path -LiteralPath $vcvars)) { throw "vcvars64.bat is missing: $vcvars" }
+
+          $vsEnvironment = cmd.exe /s /c "`"$vcvars`" >nul && set"
+          foreach ($line in $vsEnvironment) {
+            $index = $line.IndexOf('=')
+            if ($index -gt 0) {
+              [Environment]::SetEnvironmentVariable($line.Substring(0, $index), $line.Substring($index + 1), 'Process')
+            }
+          }
+          foreach ($entry in $values.GetEnumerator()) {
+            Set-Item -Path "Env:$($entry.Key)" -Value $entry.Value
+          }
+
+          $linker = Join-Path $env:VCToolsInstallDir 'bin\Hostx64\x64\link.exe'
+          $vcpkgExe = Join-Path $values.VCPKG_ROOT 'vcpkg.exe'
+          $requiredPaths = @(
+            $vcpkgExe,
+            (Join-Path $values.LIBCLANG_PATH 'libclang.dll'),
+            (Join-Path $values.CARGO_HOME 'bin\cargo.exe'),
+            (Join-Path $values.CARGO_HOME 'bin\rustup.exe'),
+            (Join-Path $values.RUSTDESK_FLUTTER_HOME 'bin\flutter.bat'),
+            $pythonExe,
+            $gitBash,
+            $linker
+          )
+          foreach ($requiredPath in $requiredPaths) {
+            if (-not (Test-Path -LiteralPath $requiredPath)) {
+              throw "Required Windows build tool is missing: $requiredPath"
+            }
+          }
+
+          $persisted = @{
+            VCPKG_ROOT = $values.VCPKG_ROOT
+            RUSTDESK_WINDOWS_VCPKG_ROOT = $values.VCPKG_ROOT
+            LIBCLANG_PATH = $values.LIBCLANG_PATH
+            RUSTDESK_FLUTTER_HOME = $values.RUSTDESK_FLUTTER_HOME
+            CARGO_HOME = $values.CARGO_HOME
+            RUSTUP_HOME = $values.RUSTUP_HOME
+            RUSTDESK_PYTHON_HOME = $pythonHome
+            CARGO_TARGET_X86_64_PC_WINDOWS_MSVC_LINKER = $linker
+          }
+          foreach ($name in @('INCLUDE', 'LIB', 'LIBPATH', 'VCINSTALLDIR', 'VCToolsInstallDir', 'WindowsSdkDir', 'WindowsSDKVersion', 'UCRTVersion', 'UniversalCRTSdkDir')) {
+            $value = [Environment]::GetEnvironmentVariable($name, 'Process')
+            if ($value) { $persisted[$name] = $value }
+          }
+          foreach ($entry in $persisted.GetEnumerator()) {
+            "$($entry.Key)=$($entry.Value)" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+          }
+          foreach ($pathEntry in $env:Path.Split(';', [StringSplitOptions]::RemoveEmptyEntries)) {
+            $pathEntry | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+          }
+          foreach ($pathEntry in @((Join-Path $values.CARGO_HOME 'bin'), (Join-Path $values.RUSTDESK_FLUTTER_HOME 'bin'), $values.VCPKG_ROOT, $values.LIBCLANG_PATH, $pythonHome, (Join-Path $pythonHome 'Scripts'))) {
+            $pathEntry | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+          }
+
+          & (Join-Path $values.CARGO_HOME 'bin\rustup.exe') toolchain install $env:RUST_VERSION --profile minimal --component rustfmt
+          $installRoot = Join-Path $values.VCPKG_ROOT 'installed'
+          & $vcpkgExe install --triplet '${{ matrix.job.vcpkg-triplet }}' --host-triplet '${{ matrix.job.vcpkg-triplet }}' "--x-install-root=$installRoot"
+          if ($LASTEXITCODE -ne 0) { throw 'vcpkg manifest installation failed' }
+
+          $tripletRoot = Join-Path $values.VCPKG_ROOT 'installed\${{ matrix.job.vcpkg-triplet }}'
+          foreach ($requiredDependency in @('include\libavutil\pixfmt.h', 'include\libavcodec\avcodec.h', 'include\vpx\vp8.h', 'lib\avcodec.lib')) {
+            $dependencyPath = Join-Path $tripletRoot $requiredDependency
+            if (-not (Test-Path -LiteralPath $dependencyPath)) { throw "Required vcpkg dependency is missing: $dependencyPath" }
+          }
+
+          $flutterVersion = & (Join-Path $values.RUSTDESK_FLUTTER_HOME 'bin\flutter.bat') --version
+          if (($flutterVersion | Out-String) -notmatch [regex]::Escape($env:FLUTTER_VERSION)) {
+            throw "Expected Flutter $env:FLUTTER_VERSION under RUSTDESK_FLUTTER_HOME"
+          }
+          & (Join-Path $values.CARGO_HOME 'bin\rustc.exe') --version
+          & $pythonExe --version
       - name: Setup NuGet
         uses: NuGet/setup-nuget@v2
         with:
@@ -366,7 +461,7 @@ jobs:
       - name: Build rustdesk
         run: |
           # Windows: build RustDesk
-          python3 .\build.py --portable --hwcodec --flutter --vram --skip-portable-pack
+          & 'C:\Program Files\Git\bin\bash.exe' -lc 'python build.py --portable --hwcodec --flutter --vram --skip-portable-pack'
           mv ./flutter/build/windows/x64/runner/Release ./rustdesk
  
           # Download usbmmidd_v2.zip and extract it to ./rustdesk
