@@ -297,7 +297,12 @@ def generate_custom_client(params, full_url):
     elif platform == 'linux':
         url = 'https://api.github.com/repos/'+_settings.GHUSER+'/'+_settings.REPONAME+'/actions/workflows/generator-linux.yml/dispatches'
     elif platform == 'android':
-        url = 'https://api.github.com/repos/'+_settings.GHUSER+'/'+_settings.REPONAME+'/actions/workflows/generator-android.yml/dispatches'
+        android_workflow = (
+            'generator-android-windows.yml'
+            if android_build_host == 'windows'
+            else 'generator-android.yml'
+        )
+        url = 'https://api.github.com/repos/'+_settings.GHUSER+'/'+_settings.REPONAME+'/actions/workflows/'+android_workflow+'/dispatches'
     elif platform == 'macos':
         url = 'https://api.github.com/repos/'+_settings.GHUSER+'/'+_settings.REPONAME+'/actions/workflows/generator-macos.yml/dispatches'
     else:
@@ -366,7 +371,6 @@ def generate_custom_client(params, full_url):
     }
     if platform == 'android':
         data["inputs"]["android_arch"] = android_arch
-        data["inputs"]["build_host"] = android_build_host
     headers = {
         'Accept':  'application/vnd.github+json',
         'Content-Type': 'application/json',

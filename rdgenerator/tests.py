@@ -321,7 +321,11 @@ class WorkflowDispatchTests(TestCase):
         self.assertTrue(result["success"])
         request_data = post.call_args.kwargs["json"]
         self.assertEqual(request_data["inputs"]["android_arch"], "armv7")
-        self.assertEqual(request_data["inputs"]["build_host"], "windows")
+        self.assertNotIn("build_host", request_data["inputs"])
+        self.assertIn(
+            "/actions/workflows/generator-android-windows.yml/dispatches",
+            post.call_args.args[0],
+        )
         self.assertEqual(
             custom_config["default-settings"]["hide-android-connection-notification"],
             "Y",
