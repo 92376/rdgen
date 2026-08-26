@@ -49,6 +49,15 @@
             box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
             flex: 50%;
         }
+        .section-description {
+            color: #999;
+            margin: -8px 0 18px;
+        }
+        .platform-specific-options {
+            margin-top: 18px;
+            padding-top: 18px;
+            border-top: 1px solid #333;
+        }
         label {
             display: block;
             margin-bottom: 5px;
@@ -245,7 +254,8 @@
             </ul>
         {% endif %}
         <div class="platform">
-            <h2><i class="fas fa-desktop"></i> Select Platform</h2>
+            <div class="section">
+                <h2><i class="fas fa-desktop"></i> Select Platform</h2>
                 <div class="platform-icons">
                     <span class="fa-stack fa-lg">
                         <i class="fab fa-windows  fa-stack-2x platform-icon active" data-platform="windows"></i>
@@ -272,6 +282,12 @@
                     <span class="help-text">{{ form.version.help_text }}</span>
                 {% endif %}
                 <div class="help-text">{{ form.version.help_text }}</div>
+            </div>
+
+            <div class="section" id="extended-build-options">
+                <h2><i class="fas fa-toolbox"></i> Extended Build Options</h2>
+                <p class="section-description">RDGen extensions that are not part of the original generator.</p>
+
                 <label for="{{ form.sourceRepository.id_for_label }}">RustDesk Source Repository:</label>
                 {{ form.sourceRepository }}
                 <div id="custom-source-repository" style="display:none;">
@@ -283,9 +299,21 @@
                 </div>
                 <div class="help-text">For non-official repositories, the selected version must exist as a branch. Otherwise the build falls back to rustdesk/rustdesk.</div>
                 <label for="{{ form.delayFix.id_for_label }}">{{ form.delayFix }} Fix connection delay when using third-party API</label>
-                <div id="windows-build-options">
+
+                <div id="windows-build-options" class="platform-specific-options">
                     <label for="{{ form.windowsBuildHost.id_for_label }}">Windows Build Host:</label>
                     {{ form.windowsBuildHost }}
+                </div>
+
+                <div id="android-build-options" class="platform-specific-options">
+                    <label for="{{ form.androidappid.id_for_label }}">Custom Android App ID (replaces 'com.carriez.flutter_hbb', leave blank to use default):</label>
+                    {{ form.androidappid }}<br><br>
+                    <label for="{{ form.androidArch.id_for_label }}">Android Architecture:</label>
+                    {{ form.androidArch }}<br><br>
+                    <label for="{{ form.androidBuildHost.id_for_label }}">Android Build Host:</label>
+                    {{ form.androidBuildHost }}<br><br>
+                    <label for="{{ form.hideAndroidConnectionNotification.id_for_label }}">{{ form.hideAndroidConnectionNotification }} Hide all Android connection request and connected notifications</label><br>
+                    <label for="{{ form.hideAndroidConnectionCard.id_for_label }}">{{ form.hideAndroidConnectionCard }} Hide the device information and current connection cards (requires permanent password)</label>
                 </div>
             </div>
         </div>
@@ -302,16 +330,6 @@
                     {{ form.installation }}<br><br>
                     <label for="{{ form.settings.id_for_label }}">Disable Settings:</label>
                     {{ form.settings }}<br><br>
-                    <label for="{{ form.androidappid.id_for_label }}">Custom Android App ID (replaces 'com.carriez.flutter_hbb', leave blank to use default):</label>
-                    {{ form.androidappid }}<br><br>
-                    <div id="android-build-options">
-                        <label for="{{ form.androidArch.id_for_label }}">Android Architecture:</label>
-                        {{ form.androidArch }}<br><br>
-                        <label for="{{ form.androidBuildHost.id_for_label }}">Android Build Host:</label>
-                        {{ form.androidBuildHost }}<br><br>
-                        <label for="{{ form.hideAndroidConnectionNotification.id_for_label }}">{{ form.hideAndroidConnectionNotification }} Hide all Android connection request and connected notifications</label><br>
-                        <label for="{{ form.hideAndroidConnectionCard.id_for_label }}">{{ form.hideAndroidConnectionCard }} Hide the device information and current connection cards (requires permanent password)</label><br><br>
-                    </div>
             </div>
 
             <div class="section">
@@ -602,11 +620,17 @@
             const formData = {};
             const form = document.getElementById("myForm"); // Get the form element
 
-            // 1. Use FormData for robust data collection (handles most input types):
+            // File inputs and hidden image values are handled separately below.
             const formDataObj = new FormData(form);  // Create a FormData object
+            const imageFieldNames = new Set([
+                'iconfile', 'logofile', 'privacyfile',
+                'iconbase64', 'logobase64', 'privacybase64'
+            ]);
 
             formDataObj.forEach((value, key) => {
-                formData[key] = value; // Add each key/value pair to the formData object.
+                if (!(value instanceof File) && !imageFieldNames.has(key)) {
+                    formData[key] = value;
+                }
             });
 
             // 2. Handle select elements separately (more reliable):
@@ -627,36 +651,10 @@
                 }
             });
 
-            // 4. Handle icon and logo
-            const iconPreview = document.getElementById('icon-preview');
-            if (iconPreview.firstChild && iconPreview.firstChild.src.startsWith('data:image/png;base64')) {
-                formData.iconfile = iconPreview.firstChild.src;  // Use existing base64
-            } else { //if it's a file upload
-                const iconFile = document.getElementById("{{ form.iconfile.id_for_label }}").files[0];
-                if (iconFile) {
-                    formData.iconfile = await readFileAsBase64(iconFile);
-                }
-            }
-
-            const logoPreview = document.getElementById('logo-preview');
-            if (logoPreview.firstChild && logoPreview.firstChild.src.startsWith('data:image/png;base64')) {
-                formData.logofile = logoPreview.firstChild.src; // Use existing base64
-            } else { //if it's a file upload
-                const logoFile = document.getElementById("{{ form.logofile.id_for_label }}").files[0];
-                if (logoFile) {
-                    formData.logofile = await readFileAsBase64(logoFile);
-                }
-            }
-
-            const privacyPreview = document.getElementById('privacy-preview');
-            if (privacyPreview.firstChild && privacyPreview.firstChild.src.startsWith('data:image/png;base64')) {
-                formData.privacyfile = privacyPreview.firstChild.src; // Use existing base64
-            } else { //if it's a file upload
-                const privacyFile = document.getElementById("{{ form.privacyfile.id_for_label }}").files[0];
-                if (privacyFile) {
-                    formData.privacyfile = await readFileAsBase64(privacyFile);
-                }
-            }
+            // Only persist image keys when a valid PNG was selected or loaded.
+            await addImageToConfiguration(formData, 'iconfile', "{{ form.iconfile.id_for_label }}", 'icon-preview');
+            await addImageToConfiguration(formData, 'logofile', "{{ form.logofile.id_for_label }}", 'logo-preview');
+            await addImageToConfiguration(formData, 'privacyfile', "{{ form.privacyfile.id_for_label }}", 'privacy-preview');
 
             const jsonData = JSON.stringify(formData, null, 2);
             const blob = new Blob([jsonData], { type: "application/json" });
@@ -680,62 +678,131 @@
             });
         }
 
+        function isValidPngDataUrl(value) {
+            return typeof value === 'string'
+                && /^data:image\/png;base64,[A-Za-z0-9+/]+={0,2}$/.test(value);
+        }
 
-        function loadFormData() {
-            const fileInput = document.getElementById("fileInput");
-            fileInput.click();
+        async function addImageToConfiguration(formData, key, inputId, previewId) {
+            const previewImage = document.querySelector(`#${previewId} img`);
+            if (previewImage && isValidPngDataUrl(previewImage.src)) {
+                formData[key] = previewImage.src;
+                return;
+            }
 
-            fileInput.addEventListener("change", (event) => {
-                const file = event.target.files[0];
-                if (file) {
-                    const reader = new FileReader();
-                    reader.onload = (e) => {
-                        try {
-                            const formData = JSON.parse(e.target.result);
-                            for (const key in formData) {
-                                // More robust selector: checks for name OR id
-                                const elements = document.querySelectorAll(`[name="${key}"], [id="${key}"]`);
+            const file = document.getElementById(inputId).files[0];
+            if (!file) {
+                return;
+            }
 
-                                if (elements.length > 0) { // Check if any element(s) exist
-                                    elements.forEach(element => { // Loop through all matching elements (important for radios)
-                                        if (element.type === 'radio') {
-                                            if (element.value === String(formData[key])) { // Compare value, crucial for radios
-                                                element.checked = true;
-                                            } else {
-                                                element.checked = false; // Uncheck others in the group
-                                            }
-                                        } else if (element.type === 'checkbox') {
-                                            element.checked = formData[key];
-                                        } else if (element.type !== 'file') {
-                                            element.value = formData[key];
-                                        }
+            const dataUrl = await readFileAsBase64(file);
+            if (isValidPngDataUrl(dataUrl)) {
+                formData[key] = dataUrl;
+            }
+        }
 
-                                        // Handle image previews (as before)
-                                        if (key === 'iconfile' && formData[key]) {
-                                            document.getElementById('id_iconbase64').value = formData[key];
-                                            document.getElementById('icon-preview').innerHTML = `<img src="${formData[key]}" style="max-width: 300px; max-height: 60px;">`;
-                                        }
-                                        if (key === 'logofile' && formData[key]) {
-                                            document.getElementById('id_logobase64').value = formData[key];
-                                            document.getElementById('logo-preview').innerHTML = `<img src="${formData[key]}" style="max-width: 300px; max-height: 60px;">`;
-                                        }
-                                        if (key === 'privacyfile' && formData[key]) {
-                                            document.getElementById('id_privacybase64').value = formData[key];
-                                            document.getElementById('privacy-preview').innerHTML = `<img src="${formData[key]}" style="max-width: 300px; max-height: 60px;">`;
-                                        }
-                                    });
-                                }
-                            }
-                            toggleCustomSourceRepository();
-                            toggleAndroidBuildOptions();
-                        } catch (error) {
-                            alert("Error loading data. Invalid JSON file.");
-                        }
-                    };
-                    reader.readAsText(file);
+        function clearImageConfiguration(baseName) {
+            document.getElementById(`${baseName}-preview`).replaceChildren();
+            document.getElementById(`id_${baseName}base64`).value = '';
+            document.getElementById(`id_${baseName}file`).value = '';
+        }
+
+        function loadImageConfiguration(formData, baseName) {
+            clearImageConfiguration(baseName);
+            const dataUrl = [
+                formData[`${baseName}file`],
+                formData[`${baseName}base64`]
+            ].find(isValidPngDataUrl);
+
+            if (!dataUrl) {
+                return;
+            }
+
+            document.getElementById(`id_${baseName}base64`).value = dataUrl;
+            const image = document.createElement('img');
+            image.src = dataUrl;
+            image.alt = `${baseName} preview`;
+            image.style.maxWidth = '300px';
+            image.style.maxHeight = '60px';
+            document.getElementById(`${baseName}-preview`).appendChild(image);
+        }
+
+        function applyConfiguration(formData) {
+            const imageFieldNames = new Set([
+                'iconfile', 'logofile', 'privacyfile',
+                'iconbase64', 'logobase64', 'privacybase64'
+            ]);
+
+            for (const key in formData) {
+                if (imageFieldNames.has(key)) {
+                    continue;
                 }
+
+                const elements = Array.from(document.getElementsByName(key));
+                const idElement = document.getElementById(key);
+                if (idElement && !elements.includes(idElement)) {
+                    elements.push(idElement);
+                }
+
+                elements.forEach(element => {
+                    if (element.type === 'radio') {
+                        element.checked = element.value === String(formData[key]);
+                    } else if (element.type === 'checkbox') {
+                        element.checked = formData[key] === true
+                            || formData[key] === 'true'
+                            || formData[key] === element.value;
+                    } else if (element.type !== 'file') {
+                        element.value = formData[key];
+                    }
+                });
+            }
+
+            loadImageConfiguration(formData, 'icon');
+            loadImageConfiguration(formData, 'logo');
+            loadImageConfiguration(formData, 'privacy');
+            toggleCustomSourceRepository();
+            toggleBuildOptions();
+            document.querySelectorAll('.platform-icon').forEach(icon => {
+                icon.classList.toggle('active', icon.dataset.platform === platformSelect.value);
             });
         }
+
+        function loadFormData() {
+            configurationFileInput.value = '';
+            configurationFileInput.click();
+        }
+
+        const configurationFileInput = document.getElementById("fileInput");
+        configurationFileInput.addEventListener("change", (event) => {
+            const file = event.target.files[0];
+            if (!file) {
+                return;
+            }
+
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                let formData;
+                try {
+                    formData = JSON.parse(e.target.result);
+                    if (!formData || Array.isArray(formData) || typeof formData !== 'object') {
+                        throw new Error('Configuration root must be a JSON object.');
+                    }
+                } catch (error) {
+                    console.error(error);
+                    alert("Error loading data. Invalid JSON file.");
+                    return;
+                }
+
+                try {
+                    applyConfiguration(formData);
+                } catch (error) {
+                    console.error(error);
+                    alert("The JSON is valid, but the configuration could not be applied.");
+                }
+            };
+            reader.onerror = () => alert("The configuration file could not be read.");
+            reader.readAsText(file);
+        });
     </script>
 </body>
 </html>

@@ -161,6 +161,41 @@ class GenerateApiTests(TestCase):
         self.assertIn("windowsBuildHost", errors)
 
 
+class GeneratorTemplateTests(TestCase):
+    def setUp(self):
+        self.html = render_to_string("generator.html", {"form": GenerateForm()})
+
+    def test_extended_build_options_are_grouped_in_one_card(self):
+        extended_start = self.html.index('id="extended-build-options"')
+        general_start = self.html.index(
+            '<h2><i class="fas fa-sliders-h"></i> General'
+        )
+        extended_card = self.html[extended_start:general_start]
+
+        self.assertIn('name="sourceRepository"', extended_card)
+        self.assertIn('name="windowsBuildHost"', extended_card)
+        self.assertIn('name="androidBuildHost"', extended_card)
+        self.assertIn('name="androidArch"', extended_card)
+        self.assertIn('name="hideAndroidConnectionNotification"', extended_card)
+        self.assertIn('name="hideAndroidConnectionCard"', extended_card)
+        self.assertEqual(self.html.count('id="id_windowsBuildHost"'), 1)
+        self.assertEqual(self.html.count('id="id_androidBuildHost"'), 1)
+
+    def test_configuration_loader_uses_current_build_options_toggle(self):
+        self.assertNotIn("toggleAndroidBuildOptions", self.html)
+        self.assertIn("toggleBuildOptions();", self.html)
+        self.assertIn(
+            "The JSON is valid, but the configuration could not be applied.",
+            self.html,
+        )
+
+    def test_configuration_export_skips_empty_image_fields(self):
+        self.assertIn("value instanceof File", self.html)
+        self.assertIn("!imageFieldNames.has(key)", self.html)
+        self.assertIn("isValidPngDataUrl", self.html)
+        self.assertNotIn('innerHTML = `<img src=', self.html)
+
+
 class DownloadTests(TestCase):
     def test_android_result_shows_selected_architecture(self):
         html = render_to_string("generated.html", {
