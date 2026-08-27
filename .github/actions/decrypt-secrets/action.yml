@@ -13,18 +13,24 @@ runs:
   using: "composite"
   steps:
     - name: install python deps
-      shell: bash
+      shell: python
       run: |
-        python -m pip install pyzipper
+        import subprocess
+        import sys
+
+        subprocess.check_call([sys.executable, '-m', 'pip', 'install', 'pyzipper'])
     - name: Decrypt and Mask
       shell: python
+      env:
+        RDGEN_ZIP_PASSWORD: ${{ inputs.zip_password }}
+        RDGEN_ZIP_PATH: ${{ inputs.zip_path }}
       run: |
         import pyzipper
         import json
         import os
 
-        with pyzipper.AESZipFile('${{ inputs.zip_path }}') as zf:
-            zf.setpassword('${{ inputs.zip_password }}'.encode())
+        with pyzipper.AESZipFile(os.environ['RDGEN_ZIP_PATH']) as zf:
+            zf.setpassword(os.environ['RDGEN_ZIP_PASSWORD'].encode())
             with zf.open('secrets.json') as f:
                 secrets = json.load(f)
 

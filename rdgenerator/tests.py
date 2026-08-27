@@ -196,6 +196,25 @@ class GeneratorTemplateTests(TestCase):
         self.assertNotIn('innerHTML = `<img src=', self.html)
 
 
+class WorkflowActionTests(TestCase):
+    def test_decrypt_secrets_dependency_install_is_cross_platform(self):
+        action_path = (
+            Path(__file__).resolve().parents[1]
+            / ".github"
+            / "actions"
+            / "decrypt-secrets"
+            / "action.yml"
+        )
+        action = action_path.read_text(encoding="utf-8")
+
+        self.assertNotIn("shell: bash", action)
+        self.assertGreaterEqual(action.count("shell: python"), 2)
+        self.assertIn("subprocess.check_call([sys.executable", action)
+        self.assertIn("RDGEN_ZIP_PASSWORD: ${{ inputs.zip_password }}", action)
+        self.assertIn("RDGEN_ZIP_PATH: ${{ inputs.zip_path }}", action)
+        self.assertNotIn("AESZipFile('${{ inputs.zip_path }}')", action)
+
+
 class DownloadTests(TestCase):
     def test_android_result_shows_selected_architecture(self):
         html = render_to_string("generated.html", {
