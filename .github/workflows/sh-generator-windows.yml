@@ -619,17 +619,46 @@ jobs:
           echo -n "${{ env.custom }}" | cat > ./rustdesk/custom_.txt
 
       - name: Build self-extracted executable
-        shell: bash
+        shell: pwsh
         if: env.UPLOAD_ARTIFACT == 'true'
+        env:
+          APP_NAME: ${{ env.appname }}
         run: |
-          mv "./rustdesk/rustdesk.exe" "./rustdesk/${{ env.appname }}.exe" || echo "rustdesk.exe"
-          sed -i '/dpiAware/d' res/manifest.xml
-          pushd ./libs/portable
-          pip3 install -r requirements.txt
-          python3 ./generate.py -f ../../rustdesk/ -o . -e "../../rustdesk/${{ env.appname }}.exe"
-          popd
-          mkdir -p ./SignOutput
-          mv ./target/release/rustdesk-portable-packer.exe "./SignOutput/rustdesk.exe"
+          $ErrorActionPreference = 'Stop'
+          $pythonExe = Join-Path $env:RUSTDESK_PYTHON_HOME 'python.exe'
+          if (-not (Test-Path -LiteralPath $pythonExe)) {
+            throw "Runner Python is missing: $pythonExe"
+          }
+
+          $sourceExe = Join-Path $PWD 'rustdesk\rustdesk.exe'
+          $appExe = Join-Path $PWD "rustdesk\$env:APP_NAME.exe"
+          if (Test-Path -LiteralPath $sourceExe) {
+            Move-Item -LiteralPath $sourceExe -Destination $appExe -Force
+          } elseif (-not (Test-Path -LiteralPath $appExe)) {
+            throw "Built RustDesk executable is missing: $sourceExe"
+          }
+
+          $manifestPath = Join-Path $PWD 'res\manifest.xml'
+          $manifest = [IO.File]::ReadAllText($manifestPath)
+          $manifest = [regex]::Replace($manifest, '(?m)^.*dpiAware.*(?:\r?\n)?', '')
+          [IO.File]::WriteAllText($manifestPath, $manifest, [Text.UTF8Encoding]::new($false))
+
+          Push-Location './libs/portable'
+          try {
+            & $pythonExe -m pip install -r requirements.txt
+            if ($LASTEXITCODE -ne 0) { throw 'Portable packer Python dependencies failed to install' }
+            & $pythonExe -u ./generate.py -f ../../rustdesk -o . -e "../../rustdesk/$env:APP_NAME.exe"
+            if ($LASTEXITCODE -ne 0) { throw "Portable packer generation failed with exit code $LASTEXITCODE" }
+          } finally {
+            Pop-Location
+          }
+
+          $packerExe = Join-Path $PWD 'target\release\rustdesk-portable-packer.exe'
+          if (-not (Test-Path -LiteralPath $packerExe)) {
+            throw "Portable packer output is missing: $packerExe"
+          }
+          New-Item -ItemType Directory -Path './SignOutput' -Force | Out-Null
+          Move-Item -LiteralPath $packerExe -Destination './SignOutput/rustdesk.exe' -Force
 
       - name: Add MSBuild to PATH
         uses: microsoft/setup-msbuild@v2
