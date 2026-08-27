@@ -135,11 +135,23 @@ jobs:
           }
 
           $linker = Join-Path $env:VCToolsInstallDir 'bin\Hostx64\x64\link.exe'
+          $rustupExe = Join-Path $values.CARGO_HOME 'bin\rustup.exe'
+          if (-not (Test-Path -LiteralPath $rustupExe)) {
+            $rustupBootstrap = Get-RunnerVariable 'RUSTDESK_RUSTUP_BOOTSTRAP' $false
+            if (-not $rustupBootstrap) {
+              $rustupBootstrap = Join-Path ([Environment]::GetFolderPath('UserProfile')) '.cargo\bin\rustup.exe'
+            }
+            if (-not (Test-Path -LiteralPath $rustupBootstrap)) {
+              throw "rustup.exe is missing and no bootstrap executable is available: $rustupBootstrap"
+            }
+            Copy-Item -LiteralPath $rustupBootstrap -Destination $rustupExe
+            Write-Host "Restored rustup.exe from the runner bootstrap copy."
+          }
           $requiredPaths = @(
             (Join-Path $values.VCPKG_ROOT 'vcpkg.exe'),
             (Join-Path $values.LIBCLANG_PATH 'libclang.dll'),
             (Join-Path $values.CARGO_HOME 'bin\cargo.exe'),
-            (Join-Path $values.CARGO_HOME 'bin\rustup.exe'),
+            $rustupExe,
             (Join-Path $values.RUSTDESK_FLUTTER_HOME 'bin\flutter.bat'),
             (Join-Path $values.ANDROID_NDK_HOME 'toolchains\llvm\prebuilt\windows-x86_64'),
             (Join-Path $values.ANDROID_HOME "build-tools\$env:ANDROID_BUILD_TOOLS_VERSION\apksigner.bat"),
@@ -195,8 +207,8 @@ jobs:
             $pathEntry | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
           }
 
-          & (Join-Path $values.CARGO_HOME 'bin\rustup.exe') toolchain install $env:RUST_VERSION --profile minimal --component rustfmt
-          & (Join-Path $values.CARGO_HOME 'bin\rustup.exe') target add --toolchain $env:RUST_VERSION ${{ matrix.job.target }}
+          & $rustupExe toolchain install $env:RUST_VERSION --profile minimal --component rustfmt
+          & $rustupExe target add --toolchain $env:RUST_VERSION ${{ matrix.job.target }}
           & (Join-Path $values.RUSTDESK_FLUTTER_HOME 'bin\flutter.bat') config --jdk-dir $values.JAVA_HOME
           $flutterVersion = & (Join-Path $values.RUSTDESK_FLUTTER_HOME 'bin\flutter.bat') --version
           if (($flutterVersion | Out-String) -notmatch [regex]::Escape($env:ANDROID_FLUTTER_VERSION)) {
@@ -297,6 +309,10 @@ jobs:
         with:
           prefix-key: rustdesk-lib-cache-android # TODO: drop '-android' part after caches are invalidated
           key: ${{ matrix.job.target }}
+          # This runner uses a persistent shared CARGO_HOME. The action's default
+          # post-step cleanup removes binaries that predate the build, including
+          # rustup.exe, and breaks the next Android or Windows job.
+          cache-bin: false
 
       ###########################################################echo "${{ env.iconbase64 }}" | base64 -d > ./res/icon.png
       - name: Prepare custom Android icon on Windows

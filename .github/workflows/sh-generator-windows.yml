@@ -206,11 +206,23 @@ jobs:
 
           $linker = Join-Path $env:VCToolsInstallDir 'bin\Hostx64\x64\link.exe'
           $vcpkgExe = Join-Path $values.VCPKG_ROOT 'vcpkg.exe'
+          $rustupExe = Join-Path $values.CARGO_HOME 'bin\rustup.exe'
+          if (-not (Test-Path -LiteralPath $rustupExe)) {
+            $rustupBootstrap = Get-RunnerVariable 'RUSTDESK_RUSTUP_BOOTSTRAP' $false
+            if (-not $rustupBootstrap) {
+              $rustupBootstrap = Join-Path ([Environment]::GetFolderPath('UserProfile')) '.cargo\bin\rustup.exe'
+            }
+            if (-not (Test-Path -LiteralPath $rustupBootstrap)) {
+              throw "rustup.exe is missing and no bootstrap executable is available: $rustupBootstrap"
+            }
+            Copy-Item -LiteralPath $rustupBootstrap -Destination $rustupExe
+            Write-Host "Restored rustup.exe from the runner bootstrap copy."
+          }
           $requiredPaths = @(
             $vcpkgExe,
             (Join-Path $values.LIBCLANG_PATH 'libclang.dll'),
             (Join-Path $values.CARGO_HOME 'bin\cargo.exe'),
-            (Join-Path $values.CARGO_HOME 'bin\rustup.exe'),
+            $rustupExe,
             (Join-Path $values.RUSTDESK_FLUTTER_HOME 'bin\flutter.bat'),
             $pythonExe,
             $gitBash,
@@ -246,7 +258,7 @@ jobs:
             $pathEntry | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
           }
 
-          & (Join-Path $values.CARGO_HOME 'bin\rustup.exe') toolchain install $env:RUST_VERSION --profile minimal --component rustfmt
+          & $rustupExe toolchain install $env:RUST_VERSION --profile minimal --component rustfmt
           $installRoot = Join-Path $values.VCPKG_ROOT 'installed'
           & $vcpkgExe install --triplet '${{ matrix.job.vcpkg-triplet }}' --host-triplet '${{ matrix.job.vcpkg-triplet }}' "--x-install-root=$installRoot"
           if ($LASTEXITCODE -ne 0) { throw 'vcpkg manifest installation failed' }
