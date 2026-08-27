@@ -275,6 +275,8 @@ jobs:
           }
           & (Join-Path $values.CARGO_HOME 'bin\rustc.exe') --version
           & $pythonExe --version
+          & $pythonExe -c "from PIL import Image; print(f'Pillow {Image.__version__}')"
+          if ($LASTEXITCODE -ne 0) { throw 'Python Pillow is required to generate custom Windows icons' }
       - name: Setup NuGet
         uses: NuGet/setup-nuget@v2
         with:
@@ -400,29 +402,87 @@ jobs:
             Invoke-WebRequest -Uri https://raw.githubusercontent.com/bryangerlach/rdgen/refs/heads/master/.github/patches/removeSetupServerTip.diff -OutFile removeSetupServerTip.diff
             git apply removeSetupServerTip.diff  
           
-      - name: magick stuff
+      - name: Prepare custom Windows icon assets
         if: ${{ env.iconlink_url != 'false' }}
-        uses: nick-fields/retry@v3
-        with:
-          timeout_minutes: 1
-          max_attempts: 3
-          shell: pwsh
-          command: |
-            Invoke-WebRequest -Uri ${{ env.iconlink_url }}/get_png?filename=${{ env.iconlink_file }}"&"uuid=${{ env.iconlink_uuid }} -OutFile ./res/iconx.png 
-            mv ./res/icon.ico ./res/icon.ico.bak
-            mv ./res/icon.png ./res/icon.png.bak
-            mv ./res/tray-icon.ico ./res/tray-icon.ico.bak
-            mv ./res/iconx.png ./res/icon.png
-            mv ./res/32x32.png ./res/32x32.png.bak
-            mv ./res/64x64.png ./res/64x64.png.bak
-            mv ./res/128x128.png ./res/128x128.png.bak
-            mv ./res/128x128@2x.png ./res/128x128@2x.png.bak
-            magick ./res/icon.png -define icon:auto-resize=256,64,48,32,16 ./res/icon.ico
-            cp ./res/icon.ico ./res/tray-icon.ico
-            magick ./res/icon.png -resize 32x32 ./res/32x32.png
-            magick ./res/icon.png -resize 64x64 ./res/64x64.png
-            magick ./res/icon.png -resize 128x128 ./res/128x128.png
-            magick ./res/128x128.png -resize 200% ./res/128x128@2x.png
+        shell: pwsh
+        env:
+          ICON_BASE_URL: ${{ env.iconlink_url }}
+          ICON_FILE: ${{ env.iconlink_file }}
+          ICON_UUID: ${{ env.iconlink_uuid }}
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $downloadPath = Join-Path $PWD 'res\icon.download.png'
+          $iconUri = "$env:ICON_BASE_URL/get_png?filename=$([Uri]::EscapeDataString($env:ICON_FILE))&uuid=$([Uri]::EscapeDataString($env:ICON_UUID))"
+          for ($attempt = 1; $attempt -le 3; $attempt++) {
+            try {
+              Invoke-WebRequest -Uri $iconUri -OutFile $downloadPath -TimeoutSec 30
+              break
+            } catch {
+              Remove-Item -LiteralPath $downloadPath -Force -ErrorAction SilentlyContinue
+              if ($attempt -eq 3) { throw }
+              Write-Warning "Icon download attempt $attempt failed; retrying in 15 seconds."
+              Start-Sleep -Seconds 15
+            }
+          }
+
+          $pythonExe = Join-Path $env:RUSTDESK_PYTHON_HOME 'python.exe'
+          $iconScript = @'
+          import os
+          import shutil
+          from pathlib import Path
+          from PIL import Image, ImageOps
+
+          res = Path("res")
+          source = res / "icon.download.png"
+          staging = res / ".rdgen-icons"
+          if staging.exists():
+              shutil.rmtree(staging)
+          staging.mkdir()
+
+          with Image.open(source) as opened:
+              opened.load()
+              original = opened.convert("RGBA")
+
+          resampling = Image.Resampling.LANCZOS
+
+          def square_icon(size):
+              fitted = ImageOps.contain(original, (size, size), resampling)
+              canvas = Image.new("RGBA", (size, size), (0, 0, 0, 0))
+              offset = ((size - fitted.width) // 2, (size - fitted.height) // 2)
+              canvas.alpha_composite(fitted, offset)
+              return canvas
+
+          original.save(staging / "icon.png", format="PNG")
+          square_icon(256).save(
+              staging / "icon.ico",
+              format="ICO",
+              sizes=[(256, 256), (64, 64), (48, 48), (32, 32), (16, 16)],
+          )
+          shutil.copyfile(staging / "icon.ico", staging / "tray-icon.ico")
+          for name, size in (
+              ("32x32.png", 32),
+              ("64x64.png", 64),
+              ("128x128.png", 128),
+              ("128x128@2x.png", 256),
+          ):
+              square_icon(size).save(staging / name, format="PNG")
+
+          outputs = (
+              "icon.png",
+              "icon.ico",
+              "tray-icon.ico",
+              "32x32.png",
+              "64x64.png",
+              "128x128.png",
+              "128x128@2x.png",
+          )
+          for name in outputs:
+              os.replace(staging / name, res / name)
+          staging.rmdir()
+          '@
+          $iconScript | & $pythonExe -
+          if ($LASTEXITCODE -ne 0) { throw 'Custom Windows icon generation failed' }
+          Remove-Item -LiteralPath $downloadPath -Force
 
 
       - name: ui.rs icon
