@@ -214,6 +214,28 @@ class WorkflowActionTests(TestCase):
         self.assertIn("RDGEN_ZIP_PATH: ${{ inputs.zip_path }}", action)
         self.assertNotIn("AESZipFile('${{ inputs.zip_path }}')", action)
 
+    def test_self_hosted_windows_workflows_prioritize_git_bash(self):
+        repository_root = Path(__file__).resolve().parents[1]
+        workflow_paths = [
+            repository_root / ".github" / "workflows" / "sh-generator-windows.yml",
+            repository_root / ".github" / "workflows" / "generator-android-windows.yml",
+        ]
+
+        for workflow_path in workflow_paths:
+            with self.subTest(workflow=workflow_path.name):
+                workflow = workflow_path.read_text(encoding="utf-8")
+                self_hosted_job = workflow.split("\n  deploy:", 1)[0]
+                self.assertIn("(Split-Path -Parent $gitBash)", workflow)
+                self.assertIn(
+                    '"STATUS_URL=${{ secrets.GENURL }}/updategh" '
+                    "| Out-File -FilePath $env:GITHUB_ENV",
+                    workflow,
+                )
+                self.assertNotIn(
+                    'echo "STATUS_URL=${{ secrets.GENURL }}/updategh"',
+                    self_hosted_job,
+                )
+
 
 class DownloadTests(TestCase):
     def test_android_result_shows_selected_architecture(self):

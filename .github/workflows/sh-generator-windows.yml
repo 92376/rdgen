@@ -133,13 +133,15 @@ jobs:
       
       - name: Set rdgen value
         if: ${{ env.rdgen == 'true' }}
+        shell: pwsh
         run: |
-          echo "STATUS_URL=${{ secrets.GENURL }}/updategh" >> $env:GITHUB_ENV
+          "STATUS_URL=${{ secrets.GENURL }}/updategh" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
 
       - name: Set rdgen value
         if: ${{ env.rdgen == 'false' }}
+        shell: pwsh
         run: |
-          echo "STATUS_URL=${{ env.apiServer }}/api/updategh" >> $env:GITHUB_ENV
+          "STATUS_URL=${{ env.apiServer }}/api/updategh" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
 
       - name: Checkout DIY source code
         uses: actions/checkout@v4
@@ -240,7 +242,7 @@ jobs:
           foreach ($pathEntry in $env:Path.Split(';', [StringSplitOptions]::RemoveEmptyEntries)) {
             $pathEntry | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
           }
-          foreach ($pathEntry in @((Join-Path $values.CARGO_HOME 'bin'), (Join-Path $values.RUSTDESK_FLUTTER_HOME 'bin'), $values.VCPKG_ROOT, $values.LIBCLANG_PATH, $pythonHome, (Join-Path $pythonHome 'Scripts'))) {
+          foreach ($pathEntry in @((Join-Path $values.CARGO_HOME 'bin'), (Join-Path $values.RUSTDESK_FLUTTER_HOME 'bin'), $values.VCPKG_ROOT, $values.LIBCLANG_PATH, $pythonHome, (Join-Path $pythonHome 'Scripts'), (Split-Path -Parent $gitBash))) {
             $pathEntry | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
           }
 
