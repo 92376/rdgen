@@ -588,22 +588,44 @@ jobs:
           mv ../rustdesk-${{ env.VERSION }}-${{ matrix.job.arch }}${{ matrix.job.suffix }}.apk ./${{ env.filename }}-${{ matrix.job.arch }}.apk
           popd
 
-      - name: Sign app APK with release key
-        if: ${{ env.ANDROID_SIGNING_KEY != '' && env.ANDROID_ALIAS != '' && env.ANDROID_KEY_STORE_PASSWORD != '' && env.ANDROID_KEY_PASSWORD != '' }}
-        uses: r0adkll/sign-android-release@v1
-        with:
-          releaseDirectory: ./signed-apk
-          signingKeyBase64: ${{ secrets.ANDROID_SIGNING_KEY }}
-          alias: ${{ secrets.ANDROID_ALIAS }}
-          keyStorePassword: ${{ secrets.ANDROID_KEY_STORE_PASSWORD }}
-          keyPassword: ${{ secrets.ANDROID_KEY_PASSWORD }}
-        env:
-          BUILD_TOOLS_VERSION: ${{ env.ANDROID_BUILD_TOOLS_VERSION }}
-
       - name: Validate release signing configuration
         if: ${{ (env.ANDROID_SIGNING_KEY != '' || env.ANDROID_ALIAS != '' || env.ANDROID_KEY_STORE_PASSWORD != '' || env.ANDROID_KEY_PASSWORD != '') && !(env.ANDROID_SIGNING_KEY != '' && env.ANDROID_ALIAS != '' && env.ANDROID_KEY_STORE_PASSWORD != '' && env.ANDROID_KEY_PASSWORD != '') }}
         shell: pwsh
         run: throw 'Release signing configuration is incomplete; set all four ANDROID_* signing secrets or leave all of them empty.'
+
+      - name: Sign app APK with release key
+        if: ${{ env.ANDROID_SIGNING_KEY != '' && env.ANDROID_ALIAS != '' && env.ANDROID_KEY_STORE_PASSWORD != '' && env.ANDROID_KEY_PASSWORD != '' }}
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $apksigner = Join-Path $env:ANDROID_HOME "build-tools\$env:ANDROID_BUILD_TOOLS_VERSION\apksigner.bat"
+          if (-not (Test-Path -LiteralPath $apksigner)) { throw "apksigner was not found: $apksigner" }
+
+          $apks = @(Get-ChildItem -LiteralPath './signed-apk' -Filter '*.apk')
+          if ($apks.Count -eq 0) { throw 'No APK was produced for release signing' }
+
+          $keystore = Join-Path $env:RUNNER_TEMP 'rdgen-release-signing.jks'
+          try {
+            $keyBytes = [Convert]::FromBase64String($env:ANDROID_SIGNING_KEY)
+            [IO.File]::WriteAllBytes($keystore, $keyBytes)
+
+            foreach ($apk in $apks) {
+              $signedApk = Join-Path $apk.DirectoryName "$($apk.BaseName).release.apk"
+              & $apksigner sign `
+                --ks $keystore `
+                --ks-key-alias $env:ANDROID_ALIAS `
+                --ks-pass env:ANDROID_KEY_STORE_PASSWORD `
+                --key-pass env:ANDROID_KEY_PASSWORD `
+                --out $signedApk `
+                $apk.FullName
+              if ($LASTEXITCODE -ne 0) { throw "Release signing failed: $($apk.FullName)" }
+              Move-Item -LiteralPath $signedApk -Destination $apk.FullName -Force
+            }
+          } finally {
+            if (Test-Path -LiteralPath $keystore) {
+              Remove-Item -LiteralPath $keystore -Force
+            }
+          }
 
       - name: Verify signed APK
         shell: pwsh
@@ -612,7 +634,7 @@ jobs:
           $apks = @(Get-ChildItem -LiteralPath './signed-apk' -Filter '*.apk')
           if ($apks.Count -eq 0) { throw 'No APK was produced for signature verification' }
           $apks | ForEach-Object {
-            & $apksigner verify --verbose $_.FullName
+            & $apksigner verify --verbose --print-certs $_.FullName
             if ($LASTEXITCODE -ne 0) { throw "APK signature verification failed: $($_.FullName)" }
           }
       - name: send file to rdgen server
